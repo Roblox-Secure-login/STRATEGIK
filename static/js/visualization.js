@@ -2,6 +2,7 @@
  * Neural Network Visualization for DQN Chess AI
  * Visualizes the neural network's state and evaluation process
  */
+
 class NetworkVisualization {
     constructor(containerId) {
         this.container = document.getElementById(containerId);
@@ -10,246 +11,249 @@ class NetworkVisualization {
             return;
         }
         
-        this.initVisualization();
-        this.drawEmptyNetwork();
+        // Initialize properties
+        this.width = this.container.clientWidth;
+        this.height = this.container.clientHeight || 200;
+        this.layerCount = 4;
+        this.maxNeuronsPerLayer = 10;
         
-        // Add window resize listener
-        window.addEventListener('resize', this.resize.bind(this));
+        // Initialize the visualization
+        this.initVisualization();
+        
+        // Listen for network updates
+        document.addEventListener('network-update', (e) => this.updateVisualization(e.detail));
     }
     
     /**
      * Initialize the visualization SVG
      */
     initVisualization() {
-        // Set dimensions
-        this.width = this.container.clientWidth;
-        this.height = 300;
-        this.margin = { top: 20, right: 20, bottom: 20, left: 20 };
+        // Clear existing content
+        this.container.innerHTML = '';
         
         // Create SVG container
-        this.svg = d3.select(this.container)
-            .append('svg')
-            .attr('width', this.width)
-            .attr('height', this.height);
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        svg.setAttribute('viewBox', `0 0 ${this.width} ${this.height}`);
+        this.container.appendChild(svg);
         
-        // Create main group with margins
-        this.g = this.svg.append('g')
-            .attr('transform', `translate(${this.margin.left},${this.margin.top})`);
-            
-        // Add color legend
-        this.addColorLegend();
-    }
-    
-    /**
-     * Add a color legend for neuron activations
-     */
-    addColorLegend() {
-        const legendWidth = 150;
-        const legendHeight = 15;
-        const legendX = this.width - this.margin.right - legendWidth;
-        const legendY = this.height - this.margin.bottom - 30;
+        // Store reference to SVG
+        this.svg = svg;
         
-        // Create gradient
-        const defs = this.svg.append('defs');
-        const gradient = defs.append('linearGradient')
-            .attr('id', 'activation-gradient')
-            .attr('x1', '0%')
-            .attr('y1', '0%')
-            .attr('x2', '100%')
-            .attr('y2', '0%');
-            
-        gradient.append('stop')
-            .attr('offset', '0%')
-            .attr('stop-color', d3.interpolateRdYlGn(0));
-            
-        gradient.append('stop')
-            .attr('offset', '50%')
-            .attr('stop-color', d3.interpolateRdYlGn(0.5));
-            
-        gradient.append('stop')
-            .attr('offset', '100%')
-            .attr('stop-color', d3.interpolateRdYlGn(1));
-            
-        // Draw legend rectangle
-        this.svg.append('rect')
-            .attr('x', legendX)
-            .attr('y', legendY)
-            .attr('width', legendWidth)
-            .attr('height', legendHeight)
-            .style('fill', 'url(#activation-gradient)');
-            
-        // Add labels
-        this.svg.append('text')
-            .attr('x', legendX)
-            .attr('y', legendY - 5)
-            .attr('text-anchor', 'start')
-            .attr('font-size', '10px')
-            .text('Low Activation');
-            
-        this.svg.append('text')
-            .attr('x', legendX + legendWidth)
-            .attr('y', legendY - 5)
-            .attr('text-anchor', 'end')
-            .attr('font-size', '10px')
-            .text('High Activation');
-            
-        this.svg.append('text')
-            .attr('x', legendX + legendWidth/2)
-            .attr('y', legendY + legendHeight + 15)
-            .attr('text-anchor', 'middle')
-            .attr('font-size', '12px')
-            .text('Neuron Activation Level');
+        // Create layers group
+        this.layersGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.svg.appendChild(this.layersGroup);
+        
+        // Create connections group (drawn first to appear behind neurons)
+        this.connectionsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.svg.insertBefore(this.connectionsGroup, this.layersGroup);
+        
+        // Create text group (drawn last to appear on top)
+        this.textGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.svg.appendChild(this.textGroup);
+        
+        // Draw initial network structure
+        this.drawEmptyNetwork();
     }
     
     /**
      * Draw an empty network structure
      */
     drawEmptyNetwork() {
-        // Clear any existing elements
-        this.g.selectAll('*').remove();
+        // Define layers
+        const layerNames = ['Input', 'Hidden 1', 'Hidden 2', 'Output'];
+        const neuronCounts = [8, 6, 4, 1];
         
-        // Default network structure (will be updated with real data)
-        this.networkStructure = [
-            { name: 'input', neurons: 10 },
-            { name: 'hidden1', neurons: 8 },
-            { name: 'hidden2', neurons: 6 },
-            { name: 'output', neurons: 1 }
-        ];
+        // Store neuron coordinates for connections
+        const neuronPositions = [];
         
-        const availableWidth = this.width - this.margin.left - this.margin.right;
-        const availableHeight = this.height - this.margin.top - this.margin.bottom - 50; // Leave space for legend
+        // Calculate layer spacing
+        const layerSpacing = this.width / (this.layerCount + 1);
         
-        // Calculate x-position of each layer
-        const layerGap = availableWidth / (this.networkStructure.length + 1);
-        
-        // For each layer
-        this.networkStructure.forEach((layer, layerIndex) => {
-            const x = (layerIndex + 1) * layerGap;
-            const neuronGap = availableHeight / (layer.neurons + 1);
+        // Draw each layer
+        for (let l = 0; l < this.layerCount; l++) {
+            const layerX = (l + 1) * layerSpacing;
+            const neuronsInLayer = neuronCounts[l];
+            const neuronPositionsInLayer = [];
             
             // Draw layer label
-            this.g.append('text')
-                .attr('x', x)
-                .attr('y', 10)
-                .attr('text-anchor', 'middle')
-                .attr('font-size', '12px')
-                .text(layer.name);
+            const layerLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            layerLabel.setAttribute('x', layerX);
+            layerLabel.setAttribute('y', 15);
+            layerLabel.setAttribute('text-anchor', 'middle');
+            layerLabel.setAttribute('font-size', '12px');
+            layerLabel.textContent = layerNames[l];
+            this.textGroup.appendChild(layerLabel);
             
-            // For each neuron in the layer
-            for (let neuronIndex = 0; neuronIndex < layer.neurons; neuronIndex++) {
-                const y = (neuronIndex + 1) * neuronGap;
+            // Draw neurons
+            const neuronSpacing = this.height / (neuronsInLayer + 1);
+            
+            for (let n = 0; n < neuronsInLayer; n++) {
+                const neuronY = (n + 1) * neuronSpacing;
                 
                 // Draw neuron
-                this.g.append('circle')
-                    .attr('cx', x)
-                    .attr('cy', y)
-                    .attr('r', 8)
-                    .attr('fill', '#e0e0e0')
-                    .attr('stroke', '#000')
-                    .attr('stroke-width', 1)
-                    .attr('data-layer', layer.name)
-                    .attr('data-neuron', neuronIndex);
+                const neuron = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                neuron.setAttribute('cx', layerX);
+                neuron.setAttribute('cy', neuronY);
+                neuron.setAttribute('r', 6);
+                neuron.setAttribute('fill', '#ccc');
+                neuron.setAttribute('class', `layer-${l} neuron-${n}`);
+                this.layersGroup.appendChild(neuron);
                 
-                // If not first layer, draw connections to previous layer
-                if (layerIndex > 0) {
-                    const prevLayer = this.networkStructure[layerIndex - 1];
-                    const prevX = (layerIndex) * layerGap;
-                    const prevNeuronGap = availableHeight / (prevLayer.neurons + 1);
-                    
-                    for (let prevNeuronIndex = 0; prevNeuronIndex < prevLayer.neurons; prevNeuronIndex++) {
-                        const prevY = (prevNeuronIndex + 1) * prevNeuronGap;
-                        
-                        // Draw connection
-                        this.g.append('line')
-                            .attr('x1', prevX)
-                            .attr('y1', prevY)
-                            .attr('x2', x)
-                            .attr('y2', y)
-                            .attr('stroke', '#ccc')
-                            .attr('stroke-width', 1)
-                            .attr('data-from-layer', prevLayer.name)
-                            .attr('data-from-neuron', prevNeuronIndex)
-                            .attr('data-to-layer', layer.name)
-                            .attr('data-to-neuron', neuronIndex);
-                    }
+                // Store position
+                neuronPositionsInLayer.push({ x: layerX, y: neuronY });
+            }
+            
+            neuronPositions.push(neuronPositionsInLayer);
+        }
+        
+        // Draw connections between layers
+        for (let l = 0; l < neuronPositions.length - 1; l++) {
+            const fromLayer = neuronPositions[l];
+            const toLayer = neuronPositions[l + 1];
+            
+            for (let from = 0; from < fromLayer.length; from++) {
+                for (let to = 0; to < toLayer.length; to++) {
+                    const connection = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    connection.setAttribute('x1', fromLayer[from].x);
+                    connection.setAttribute('y1', fromLayer[from].y);
+                    connection.setAttribute('x2', toLayer[to].x);
+                    connection.setAttribute('y2', toLayer[to].y);
+                    connection.setAttribute('stroke', '#ddd');
+                    connection.setAttribute('stroke-width', '1');
+                    connection.setAttribute('class', `connection from-${l}-${from} to-${l+1}-${to}`);
+                    this.connectionsGroup.appendChild(connection);
                 }
             }
-        });
+        }
     }
     
     /**
      * Update the visualization with new network state data
-     * @param {Array} data - Network state and evaluation data from the DQN
+     * @param {Object} data - Network state and evaluation data
      */
     updateVisualization(data) {
-        if (!data || !Array.isArray(data)) {
-            console.error('Invalid network state data:', data);
-            return;
-        }
+        if (!data || !data.networkState) return;
         
-        // Update network structure if it's different
-        if (this.networkStructure.length !== data.length) {
-            this.networkStructure = data.map(layer => ({
-                name: layer.layer,
-                neurons: layer.neurons.length
-            }));
-            this.drawEmptyNetwork();
-        }
+        const { networkState, evaluation, isThinking } = data;
         
-        const availableWidth = this.width - this.margin.left - this.margin.right;
-        const availableHeight = this.height - this.margin.top - this.margin.bottom - 50;
-        
-        // Calculate x-position of each layer
-        const layerGap = availableWidth / (this.networkStructure.length + 1);
-        
-        // For each layer
-        data.forEach((layerData, layerIndex) => {
-            const layer = this.networkStructure[layerIndex];
-            const x = (layerIndex + 1) * layerGap;
-            const neuronGap = availableHeight / (layer.neurons + 1);
+        // Update neuron colors based on activation values
+        for (let l = 0; l < networkState.length; l++) {
+            const layer = networkState[l];
             
-            // For each neuron
-            layerData.neurons.forEach((neuron, neuronIndex) => {
-                if (neuronIndex >= layer.neurons) return; // Skip if outside our visualization
+            if (!layer || !layer.neurons) continue;
+            
+            // Update neurons in this layer
+            for (let n = 0; n < layer.neurons.length; n++) {
+                const neuron = layer.neurons[n];
                 
-                const y = (neuronIndex + 1) * neuronGap;
-                const activation = neuron.activation;
-                
-                // Update neuron color based on activation
-                this.g.select(`circle[data-layer="${layer.name}"][data-neuron="${neuronIndex}"]`)
-                    .transition()
-                    .duration(500)
-                    .attr('fill', d3.interpolateRdYlGn(activation));
-                
-                // If not first layer, update connection weights
-                if (layerIndex > 0) {
-                    const prevLayer = this.networkStructure[layerIndex - 1];
-                    const prevLayerData = data[layerIndex - 1];
+                // Find the neuron element
+                const neuronElement = this.svg.querySelector(`.layer-${l}.neuron-${n}`);
+                if (neuronElement) {
+                    // Calculate color based on activation (red for negative, green for positive)
+                    const value = neuron.activation;
+                    let color;
                     
-                    prevLayerData.neurons.forEach((prevNeuron, prevNeuronIndex) => {
-                        if (prevNeuronIndex >= prevLayer.neurons) return;
-                        
-                        // Calculate weight color and thickness (would come from the API in a real implementation)
-                        const weight = (prevNeuron.weight + 1) / 2; // Normalize from [-1,1] to [0,1]
-                        
-                        // Find the connection
-                        this.g.select(`line[data-from-layer="${prevLayer.name}"][data-from-neuron="${prevNeuronIndex}"][data-to-layer="${layer.name}"][data-to-neuron="${neuronIndex}"]`)
-                            .transition()
-                            .duration(500)
-                            .attr('stroke', d3.interpolateRdYlGn(weight))
-                            .attr('stroke-width', 1 + Math.abs(prevNeuron.weight) * 2);
-                    });
+                    if (value >= 0) {
+                        // Green intensity based on value (0-1)
+                        const intensity = Math.min(255, Math.round(value * 255));
+                        color = `rgb(0, ${intensity}, 0)`;
+                    } else {
+                        // Red intensity based on absolute value (0-1)
+                        const intensity = Math.min(255, Math.round(Math.abs(value) * 255));
+                        color = `rgb(${intensity}, 0, 0)`;
+                    }
+                    
+                    // Update neuron color
+                    neuronElement.setAttribute('fill', color);
+                    
+                    // Add pulsing animation if AI is thinking
+                    if (isThinking) {
+                        neuronElement.setAttribute('opacity', '0.8');
+                        neuronElement.innerHTML = `
+                            <animate attributeName="opacity" 
+                                values="0.5;1;0.5" 
+                                dur="1s" 
+                                repeatCount="indefinite" />
+                        `;
+                    } else {
+                        neuronElement.removeAttribute('opacity');
+                        neuronElement.innerHTML = '';
+                    }
                 }
-            });
-        });
+            }
+            
+            // Update connections to the next layer
+            if (l < networkState.length - 1) {
+                for (let from = 0; from < layer.neurons.length; from++) {
+                    const fromNeuron = layer.neurons[from];
+                    
+                    for (let to = 0; to < Math.min(10, networkState[l+1].neurons.length); to++) {
+                        // Find the connection element
+                        const connectionElement = this.svg.querySelector(`.connection.from-${l}-${from}.to-${l+1}-${to}`);
+                        
+                        if (connectionElement) {
+                            // Calculate weight (use random value for demo)
+                            // In a real implementation, you would use the actual weight
+                            const weight = fromNeuron.weight || Math.random() * 2 - 1;
+                            
+                            // Calculate color and thickness based on weight
+                            let color;
+                            let width;
+                            
+                            if (weight >= 0) {
+                                // Blue for positive weights
+                                const intensity = Math.min(255, Math.round(weight * 200));
+                                color = `rgba(0, 0, ${intensity}, 0.5)`;
+                                width = Math.max(0.5, Math.min(3, weight * 3));
+                            } else {
+                                // Red for negative weights
+                                const intensity = Math.min(255, Math.round(Math.abs(weight) * 200));
+                                color = `rgba(${intensity}, 0, 0, 0.5)`;
+                                width = Math.max(0.5, Math.min(3, Math.abs(weight) * 3));
+                            }
+                            
+                            // Update connection
+                            connectionElement.setAttribute('stroke', color);
+                            connectionElement.setAttribute('stroke-width', width);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Add a pulse effect on the evaluation display if thinking
+        const evaluationMeter = document.getElementById('evaluation-meter');
+        if (evaluationMeter) {
+            if (isThinking) {
+                evaluationMeter.classList.add('thinking');
+            } else {
+                evaluationMeter.classList.remove('thinking');
+            }
+        }
     }
     
     /**
      * Resize the visualization
      */
     resize() {
+        if (!this.container) return;
+        
+        // Update width and height
         this.width = this.container.clientWidth;
-        this.svg.attr('width', this.width);
-        this.drawEmptyNetwork();
+        
+        // Reinitialize visualization with new dimensions
+        this.initVisualization();
     }
 }
+
+// Initialize the network visualization when the DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    const networkViz = new NetworkVisualization('network-visualization');
+    
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        networkViz.resize();
+    });
+});

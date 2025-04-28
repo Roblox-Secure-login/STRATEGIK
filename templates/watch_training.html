@@ -301,141 +301,72 @@
             }
             
             // Function to simulate training progress
-            // Function to get training stats from the server
-            async function fetchTrainingStats() {
-                try {
-                    const response = await fetch('/api/get-training-stats');
-                    const data = await response.json();
-                    
-                    if (data.status === 'success') {
-                        // Update training data with real values from server
-                        trainingData.totalGames = data.stats.total_games;
-                        trainingData.currentEpisode = data.stats.total_games;
-                        trainingData.epsilon = data.stats.epsilon;
-                        trainingData.winRate = data.stats.win_rate;
-                        trainingData.avgGameLength = data.stats.avg_game_length;
-                        trainingData.avgReward = data.stats.avg_reward;
-                        
-                        // Update learning curve with training history
-                        if (data.stats.training_history && data.stats.training_history.length > 0) {
-                            // Create new datapoints from history
-                            const newDataPoints = data.stats.training_history.map((item, index) => ({
-                                episode: trainingData.totalGames - data.stats.training_history.length + index,
-                                reward: item.reward
-                            }));
-                            
-                            // Add new datapoints to learning curve
-                            trainingData.learningCurve = [
-                                ...trainingData.learningCurve.filter(point => 
-                                    point.episode < trainingData.totalGames - data.stats.training_history.length
-                                ),
-                                ...newDataPoints
-                            ];
-                        }
-                        
-                        // Update UI
-                        updateTrainingUI();
-                        
-                        // If there's a last game, display it on the board
-                        if (data.stats.last_game && data.stats.last_game.length > 0) {
-                            const game = new Chess();
-                            // Reset the board first
-                            trainingBoard.setPosition(game.fen());
-                            
-                            // Play through the moves with a delay
-                            let moveIndex = 0;
-                            const moveInterval = setInterval(() => {
-                                if (moveIndex < data.stats.last_game.length) {
-                                    try {
-                                        game.move(data.stats.last_game[moveIndex]);
-                                        trainingBoard.setPosition(game.fen());
-                                        
-                                        // Update current move counter
-                                        document.getElementById('current-move').textContent = moveIndex + 1;
-                                    } catch (e) {
-                                        console.error('Invalid move:', data.stats.last_game[moveIndex]);
-                                    }
-                                    moveIndex++;
-                                } else {
-                                    clearInterval(moveInterval);
-                                }
-                            }, 500);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error fetching training stats:', error);
-                }
-            }
-            
-            async function startTraining() {
+            function startTraining() {
                 isTraining = true;
                 
                 // Get parameters from form
-                const numGames = parseInt(document.getElementById('episodes').value);
+                const episodes = parseInt(document.getElementById('episodes').value);
                 const initialEpsilon = parseFloat(document.getElementById('initial-epsilon').value);
-                const learningRate = parseFloat(document.getElementById('learning-rate').value);
-                const discountFactor = parseFloat(document.getElementById('discount-factor').value);
                 const speed = parseInt(document.getElementById('speed').value);
                 
-                // Update UI parameters
-                trainingData.episodes = numGames;
+                // Update training data with parameters
+                trainingData.episodes = episodes;
                 trainingData.epsilon = initialEpsilon;
                 
                 // Update x-axis domain based on episodes
-                x.domain([0, numGames]);
+                x.domain([0, episodes]);
                 svg.select('g').call(d3.axisBottom(x));
                 
-                try {
-                    // Update training parameters on the server
-                    const paramsResponse = await fetch('/api/update-training-parameters', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            epsilon: initialEpsilon,
-                            alpha: learningRate,
-                            gamma: discountFactor
-                        })
-                    });
+                // Simulate training process
+                trainingInterval = setInterval(() => {
+                    // Simulate a training episode
+                    trainingData.currentEpisode++;
                     
-                    // Start the training
-                    const response = await fetch('/api/start-training', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            num_games: numGames
-                        })
-                    });
+                    // Decrease epsilon slightly
+                    trainingData.epsilon = Math.max(0.01, initialEpsilon * (1 - trainingData.currentEpisode / episodes));
                     
-                    const data = await response.json();
+                    // Update metrics with some randomness
+                    trainingData.winRate = Math.min(100, 40 * (trainingData.currentEpisode / episodes) + Math.random() * 10);
+                    trainingData.avgGameLength = 30 + (trainingData.currentEpisode / episodes) * 10 + Math.random() * 5;
+                    trainingData.avgReward = -0.5 + trainingData.currentEpisode / episodes + Math.random() * 0.2;
                     
-                    if (data.status === 'success') {
-                        // Training started successfully, now poll for updates
-                        fetchTrainingStats();
-                        
-                        // Set interval to periodically fetch updated stats
-                        trainingInterval = setInterval(() => {
-                            fetchTrainingStats();
-                            
-                            // Stop if we've reached the target number of games
-                            if (trainingData.currentEpisode >= trainingData.episodes) {
-                                pauseTraining();
-                                alert('Training completed!');
-                            }
-                        }, 10000 / (speed / 10)); // Adjust polling frequency based on speed setting
-                    } else {
-                        alert('Error starting training: ' + data.message);
-                        isTraining = false;
+                    // Update learning curve
+                    if (trainingData.currentEpisode % 10 === 0) {
+                        trainingData.learningCurve.push({
+                            episode: trainingData.currentEpisode,
+                            reward: trainingData.avgReward
+                        });
                     }
-                } catch (error) {
-                    console.error('Error starting training:', error);
-                    alert('Error starting training. See console for details.');
-                    isTraining = false;
-                }
-            }
+                    
+                    // Update UI
+                    updateTrainingUI();
+                    
+                    // Simulate chess position
+                    if (trainingData.currentEpisode % 5 === 0) {
+                        const game = new Chess();
+                        const moves = Math.floor(Math.random() * 20);
+                        
+                        for (let i = 0; i < moves; i++) {
+                            const legalMoves = game.moves();
+                            if (legalMoves.length > 0) {
+                                const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+                                game.move(randomMove);
+                            }
+                        }
+                        
+                        trainingBoard.position(game.fen());
+                        document.getElementById('current-move').textContent = game.history().length;
+                        document.getElementById('current-eval').textContent = (Math.random() * 2 - 1).toFixed(2);
+                        document.getElementById('current-reward').textContent = (Math.random() * 0.2 - 0.1).toFixed(2);
+                    }
+                    
+                    // Check if training is complete
+                    if (trainingData.currentEpisode >= episodes) {
+                        pauseTraining();
+                        document.getElementById('pause-training-btn').disabled = true;
+                        document.getElementById('start-training-btn').disabled = true;
+                    }
+                }, 100 - speed);  // Adjust speed based on slider
             }
             
             // Function to pause training
@@ -503,58 +434,8 @@
                 // Simple interface to update the board
                 return {
                     position: function(fen) {
-                        // Clear any existing pieces
-                        board.querySelectorAll('.chess-piece').forEach(piece => piece.remove());
-                        
-                        if (fen === 'start') {
-                            fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-                        }
-                        
-                        // Parse the FEN and place pieces
-                        const fenParts = fen.split(' ');
-                        const position = fenParts[0];
-                        let row = 0;
-                        let col = 0;
-                        
-                        for (let i = 0; i < position.length; i++) {
-                            const char = position.charAt(i);
-                            
-                            if (char === '/') {
-                                row++;
-                                col = 0;
-                            } else if (char >= '1' && char <= '8') {
-                                col += parseInt(char);
-                            } else {
-                                // It's a piece, add it to the board
-                                const piece = document.createElement('div');
-                                piece.className = 'chess-piece';
-                                piece.style.position = 'absolute';
-                                piece.style.width = `${size/8}px`;
-                                piece.style.height = `${size/8}px`;
-                                piece.style.top = `${row * size/8}px`;
-                                piece.style.left = `${col * size/8}px`;
-                                piece.style.display = 'flex';
-                                piece.style.justifyContent = 'center';
-                                piece.style.alignItems = 'center';
-                                piece.style.fontSize = `${size/12}px`;
-                                piece.style.fontWeight = 'bold';
-                                
-                                // Map chess piece characters to unicode symbols
-                                const pieceMap = {
-                                    'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟',
-                                    'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙'
-                                };
-                                
-                                piece.textContent = pieceMap[char];
-                                piece.style.color = char.toLowerCase() === char ? 'black' : 'white';
-                                
-                                board.appendChild(piece);
-                                col++;
-                            }
-                        }
-                    },
-                    setPosition: function(fen) {
-                        this.position(fen);
+                        // In a real implementation, this would show the pieces based on FEN
+                        // For the training visualization, we just need to show position changes
                     }
                 };
             }

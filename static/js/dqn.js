@@ -2,10 +2,14 @@
  * DQN (Deep Q-Network) Agent Interface
  * Handles communication with the backend DQN agent
  */
+
 class DQNInterface {
     constructor() {
-        this.networkVisualization = null;
-        this.evaluationMeter = null;
+        this.isThinking = false;
+        this.latestEvaluation = 0;
+        this.confidence = 0;
+        this.networkState = null;
+        this.moveHistory = [];
     }
     
     /**
@@ -14,6 +18,8 @@ class DQNInterface {
      * @returns {Promise<Object>} - The AI's chosen move and related data
      */
     async getMove(fen) {
+        this.isThinking = true;
+        
         try {
             const response = await fetch('/api/get-ai-move', {
                 method: 'POST',
@@ -23,26 +29,32 @@ class DQNInterface {
                 body: JSON.stringify({ fen })
             });
             
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
             const data = await response.json();
             
-            // Update visualization if available
-            if (this.networkVisualization) {
-                this.networkVisualization.updateVisualization(data.network_states);
-            }
+            this.isThinking = false;
+            this.latestEvaluation = data.confidence;
+            this.confidence = data.confidence;
+            this.networkState = data.network_states;
             
-            // Update evaluation meter if available
-            if (this.evaluationMeter) {
-                this.updateEvaluationMeter(data.confidence);
-            }
-            
-            return {
+            // Record the move
+            this.moveHistory.push({
+                fen: fen,
                 move: data.move,
-                confidence: data.confidence,
-                networkStates: data.network_states
-            };
+                evaluation: data.confidence
+            });
+            
+            // Trigger visualization update
+            this.updateVisualization();
+            
+            return data;
         } catch (error) {
             console.error('Error getting AI move:', error);
-            throw error;
+            this.isThinking = false;
+            return null;
         }
     }
     
@@ -61,25 +73,22 @@ class DQNInterface {
                 body: JSON.stringify({ fen })
             });
             
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
             const data = await response.json();
             
-            // Update visualization if available
-            if (this.networkVisualization) {
-                this.networkVisualization.updateVisualization(data.network_states);
-            }
+            this.latestEvaluation = data.evaluation;
+            this.networkState = data.network_states;
             
-            // Update evaluation meter if available
-            if (this.evaluationMeter) {
-                this.updateEvaluationMeter(data.evaluation);
-            }
+            // Update visualization
+            this.updateVisualization();
             
-            return {
-                evaluation: data.evaluation,
-                networkStates: data.network_states
-            };
+            return data;
         } catch (error) {
             console.error('Error evaluating position:', error);
-            throw error;
+            return null;
         }
     }
     
@@ -98,10 +107,14 @@ class DQNInterface {
                 body: JSON.stringify({ fen })
             });
             
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
             return await response.json();
         } catch (error) {
             console.error('Error checking game state:', error);
-            throw error;
+            return null;
         }
     }
     
@@ -121,86 +134,39 @@ class DQNInterface {
                 body: JSON.stringify({ fen, square })
             });
             
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
             const data = await response.json();
             return data.moves;
         } catch (error) {
             console.error('Error getting legal moves:', error);
-            throw error;
+            return [];
         }
     }
     
     /**
-     * Start a training session for the DQN
-     * @param {number} numGames - Number of games to play
-     * @returns {Promise<Object>} - Training results
+     * Update the neural network visualization
      */
-    async startTraining(numGames = 10) {
-        try {
-            const response = await fetch('/api/start-training', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ num_games: numGames })
+    updateVisualization() {
+        // Only update if we have network state data
+        if (this.networkState) {
+            // Create an event to communicate with the visualization module
+            const event = new CustomEvent('network-update', {
+                detail: {
+                    networkState: this.networkState,
+                    evaluation: this.latestEvaluation,
+                    confidence: this.confidence,
+                    isThinking: this.isThinking
+                }
             });
             
-            return await response.json();
-        } catch (error) {
-            console.error('Error starting training:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Get current training statistics
-     * @returns {Promise<Object>} - Training statistics
-     */
-    async getTrainingStats() {
-        try {
-            const response = await fetch('/api/get-training-stats');
-            return await response.json();
-        } catch (error) {
-            console.error('Error getting training stats:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Update training parameters
-     * @param {Object} params - Training parameters to update
-     * @returns {Promise<Object>} - Updated parameters
-     */
-    async updateTrainingParameters(params) {
-        try {
-            const response = await fetch('/api/update-training-parameters', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(params)
-            });
+            document.dispatchEvent(event);
             
-            return await response.json();
-        } catch (error) {
-            console.error('Error updating training parameters:', error);
-            throw error;
+            // Update evaluation meter
+            this.updateEvaluationMeter(this.latestEvaluation);
         }
-    }
-    
-    /**
-     * Set the network visualization component
-     * @param {NetworkVisualization} visualization - The visualization component
-     */
-    setNetworkVisualization(visualization) {
-        this.networkVisualization = visualization;
-    }
-    
-    /**
-     * Set the evaluation meter element
-     * @param {HTMLElement} meterElement - The meter DOM element
-     */
-    setEvaluationMeter(meterElement) {
-        this.evaluationMeter = meterElement;
     }
     
     /**
@@ -208,21 +174,31 @@ class DQNInterface {
      * @param {number} evaluation - The current position evaluation
      */
     updateEvaluationMeter(evaluation) {
-        if (!this.evaluationMeter) return;
+        const evaluationMeter = document.getElementById('evaluation-meter');
+        if (!evaluationMeter) return;
         
-        // Normalize evaluation to a percentage (-100 to 100 -> 0 to 100%)
-        const normalizedValue = Math.max(0, Math.min(100, (evaluation + 1) * 50));
+        const progressBar = evaluationMeter.querySelector('.progress-bar');
+        if (!progressBar) return;
         
-        // Update the meter
-        this.evaluationMeter.style.width = `${normalizedValue}%`;
+        // Map the evaluation to a 0-100 scale for the progress bar
+        // Typical evaluation values might range from -5 (black winning) to +5 (white winning)
+        // Map this to 0-100% with 50% being equal position
+        const normalizedEval = Math.min(100, Math.max(0, (evaluation + 5) * 10));
+        progressBar.style.width = `${normalizedEval}%`;
         
-        // Set color based on evaluation
-        if (evaluation > 0.2) {
-            this.evaluationMeter.className = 'progress-bar bg-success';
-        } else if (evaluation < -0.2) {
-            this.evaluationMeter.className = 'progress-bar bg-danger';
+        // Change color based on evaluation
+        if (normalizedEval < 40) {
+            progressBar.className = 'progress-bar bg-danger'; // Black advantage
+        } else if (normalizedEval > 60) {
+            progressBar.className = 'progress-bar bg-success'; // White advantage
         } else {
-            this.evaluationMeter.className = 'progress-bar bg-warning';
+            progressBar.className = 'progress-bar bg-primary'; // Roughly equal
+        }
+        
+        // Update the displayed value text
+        const evalText = document.querySelector('#evaluation-meter + div small:nth-child(2)');
+        if (evalText) {
+            evalText.textContent = `Even (${evaluation.toFixed(1)})`;
         }
     }
     
@@ -230,15 +206,16 @@ class DQNInterface {
      * Reset the agent's state
      */
     reset() {
-        // Reset visualization if available
-        if (this.networkVisualization) {
-            this.networkVisualization.drawEmptyNetwork();
-        }
+        this.isThinking = false;
+        this.latestEvaluation = 0;
+        this.confidence = 0;
+        this.networkState = null;
+        this.moveHistory = [];
         
-        // Reset evaluation meter if available
-        if (this.evaluationMeter) {
-            this.evaluationMeter.style.width = '50%';
-            this.evaluationMeter.className = 'progress-bar bg-warning';
-        }
+        // Reset visualization
+        this.updateVisualization();
     }
 }
+
+// Create a global instance of the DQN interface
+const dqnAgent = new DQNInterface();
