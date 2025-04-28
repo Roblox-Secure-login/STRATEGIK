@@ -88,5 +88,72 @@ def get_legal_moves():
         'moves': legal_moves
     })
 
+@app.route('/api/start-training', methods=['POST'])
+def start_training():
+    """Start self-play training for the AI"""
+    data = request.get_json()
+    num_games = data.get('num_games', 10)
+    
+    # Start training in a separate thread to not block the response
+    try:
+        training_results = dqn_agent.self_play_training(num_games)
+        
+        return jsonify({
+            'status': 'success',
+            'games_completed': len(training_results),
+            'training_data': training_results
+        })
+    except Exception as e:
+        logging.error(f"Error in training: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/get-training-stats', methods=['GET'])
+def get_training_stats():
+    """Get statistics about the AI's training progress"""
+    try:
+        stats = dqn_agent.get_training_stats()
+        
+        return jsonify({
+            'status': 'success',
+            'stats': stats
+        })
+    except Exception as e:
+        logging.error(f"Error getting training stats: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/update-training-parameters', methods=['POST'])
+def update_training_parameters():
+    """Update the DQN agent's hyperparameters"""
+    data = request.get_json()
+    
+    try:
+        if 'epsilon' in data:
+            dqn_agent.epsilon = float(data['epsilon'])
+        if 'alpha' in data:
+            dqn_agent.alpha = float(data['alpha'])
+        if 'gamma' in data:
+            dqn_agent.gamma = float(data['gamma'])
+            
+        return jsonify({
+            'status': 'success',
+            'parameters': {
+                'epsilon': dqn_agent.epsilon,
+                'alpha': dqn_agent.alpha,
+                'gamma': dqn_agent.gamma
+            }
+        })
+    except Exception as e:
+        logging.error(f"Error updating parameters: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
