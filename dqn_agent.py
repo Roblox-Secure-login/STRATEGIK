@@ -207,13 +207,19 @@ class DQNAgent:
                     'p': -1, 'n': -3, 'b': -3, 'r': -5, 'q': -9, 'k': 0
                 }
                 
+                # Add a small bonus for white to counter the observed black advantage
+                white_advantage_bonus = 0.25
+                
                 for square in chess.SQUARES:
                     piece = board.piece_at(square)
                     if piece:
                         material_balance += piece_values[piece.symbol()]
                 
+                # Give white a small advantage to balance performance
+                material_balance += white_advantage_bonus
+                
                 # Add some randomness to evaluation for demonstration
-                evaluation = material_balance + (random.random() - 0.5) * 0.5
+                evaluation = material_balance + (random.random() - 0.5) * 0.3
                 self.board_values[features] = evaluation
             
             return self.board_values[features], self.generate_network_visual()
@@ -502,13 +508,19 @@ class DQNAgent:
                     piece_values = {"P": 1, "N": 3, "B": 3, "R": 5, "Q": 9, "K": 0,
                                   "p": -1, "n": -3, "b": -3, "r": -5, "q": -9, "k": 0}
                     
+                    # Add a small bonus for white to counter the observed black advantage
+                    white_advantage_bonus = 0.25
+                    
                     for square in chess.SQUARES:
                         piece = board.piece_at(square)
                         if piece:
                             material_balance += piece_values[piece.symbol()]
                     
-                    # Add some randomness to evaluation
-                    evaluation = material_balance + (random.random() - 0.5) * 0.5
+                    # Give white a small advantage to balance performance
+                    material_balance += white_advantage_bonus
+                    
+                    # Add some randomness to evaluation but reduce the range
+                    evaluation = material_balance + (random.random() - 0.5) * 0.3
                     self.board_values[next_features] = evaluation
                 
                 # Q-learning update
