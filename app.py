@@ -1,6 +1,9 @@
 import os
 import logging
+import uuid
+import json
 from flask import Flask, render_template, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
 from chess_engine import ChessEngine
 from dqn_agent import DQNAgent
 
@@ -10,6 +13,17 @@ logging.basicConfig(level=logging.DEBUG)
 # Create the Flask app
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "strategik-chess-ai-secret")
+
+# Configure the database
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_recycle": 300,
+    "pool_pre_ping": True,
+}
+
+# Initialize the database
+db = SQLAlchemy(app)
 
 # Initialize the chess engine and DQN agent
 chess_engine = ChessEngine()
