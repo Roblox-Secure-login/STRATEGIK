@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch Training - STRATEGIK Chess AI</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <header class="navbar navbar-expand-lg navbar-dark bg-success">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">STRATEGIK</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Play AI</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/watch-training">Watch Training</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/ai-description">AI Description</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/about">About</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <main class="container py-4">
+        <h1 class="text-center mb-4">Watch Training</h1>
+        <p class="text-center mb-5">Observe how the Deep Q-Learning neural network learns and improves over time</p>
+        
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Training Visualization</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Training Progress:</span>
+                                <span id="training-progress">Episode 0 of 1000</span>
+                            </div>
+                            <div class="progress mb-3">
+                                <div id="progress-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Current Epsilon:</span>
+                                <span id="current-epsilon">0.1</span>
+                            </div>
+                            <div class="progress mb-4">
+                                <div id="epsilon-bar" class="progress-bar bg-info" role="progressbar" style="width: 10%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h5>Training Statistics</h5>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="card bg-light mb-3">
+                                        <div class="card-body text-center">
+                                            <h6 class="card-title">Win Rate</h6>
+                                            <p class="card-text display-6" id="win-rate">0%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-light mb-3">
+                                        <div class="card-body text-center">
+                                            <h6 class="card-title">Avg. Game Length</h6>
+                                            <p class="card-text display-6" id="avg-game-length">0</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-light mb-3">
+                                        <div class="card-body text-center">
+                                            <h6 class="card-title">Avg. Reward</h6>
+                                            <p class="card-text display-6" id="avg-reward">0.0</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <h5>Learning Curve</h5>
+                            <div id="learning-curve" style="height: 250px;">
+                                <!-- D3.js will render the learning curve here -->
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button id="start-training-btn" class="btn btn-success me-2">Start Training</button>
+                            <button id="pause-training-btn" class="btn btn-warning me-2" disabled>Pause</button>
+                            <button id="reset-training-btn" class="btn btn-danger">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Current Game</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="training-board" style="width: 100%; max-width: 320px; margin: 0 auto;"></div>
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between">
+                                <span>Move:</span>
+                                <span id="current-move">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Evaluation:</span>
+                                <span id="current-eval">0.0</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Reward:</span>
+                                <span id="current-reward">0.0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Training Parameters</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="training-params-form">
+                            <div class="mb-3">
+                                <label for="episodes" class="form-label">Episodes</label>
+                                <input type="number" class="form-control" id="episodes" min="10" max="10000" value="1000">
+                            </div>
+                            <div class="mb-3">
+                                <label for="initial-epsilon" class="form-label">Initial Epsilon</label>
+                                <input type="number" class="form-control" id="initial-epsilon" min="0.01" max="1" step="0.01" value="0.1">
+                            </div>
+                            <div class="mb-3">
+                                <label for="learning-rate" class="form-label">Learning Rate (α)</label>
+                                <input type="number" class="form-control" id="learning-rate" min="0.001" max="0.5" step="0.001" value="0.01">
+                            </div>
+                            <div class="mb-3">
+                                <label for="discount-factor" class="form-label">Discount Factor (γ)</label>
+                                <input type="number" class="form-control" id="discount-factor" min="0.8" max="0.999" step="0.001" value="0.95">
+                            </div>
+                            <div class="mb-3">
+                                <label for="speed" class="form-label">Training Speed</label>
+                                <input type="range" class="form-range" id="speed" min="1" max="100" value="50">
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="py-4 bg-light mt-5">
+        <div class="container text-center">
+            <p>STRATEGIK - Chess AI with Deep Q-Learning Neural Network</p>
+            <p>Built with Python, Flask and JavaScript</p>
+            <p>Watch the AI learn and improve through self-play and your moves</p>
+            <p class="mb-0">&copy; 2025 STRATEGIK | An intelligent chess platform for learning and exploration</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- D3.js for visualization -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Chess.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <!-- Custom Scripts -->
+    <script src="/static/js/chessboard.js"></script>
+    <script src="/static/js/visualization.js"></script>
+    <script src="/static/js/dqn.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize a small chessboard for training visualization
+            const trainingBoard = createChessboard('training-board', 300, true);
+            
+            // Mock training data for visualization (would be real in production)
+            let trainingData = {
+                episodes: 1000,
+                currentEpisode: 0,
+                epsilon: 0.1,
+                winRate: 0,
+                avgGameLength: 0,
+                avgReward: 0,
+                learningCurve: Array(100).fill().map((_, i) => ({ episode: i * 10, reward: 0 }))
+            };
+            
+            // Training controls
+            let trainingInterval;
+            let isTraining = false;
+            
+            // Initialize D3.js learning curve visualization
+            const margin = {top: 20, right: 20, bottom: 30, left: 50};
+            const width = document.getElementById('learning-curve').clientWidth - margin.left - margin.right;
+            const height = 250 - margin.top - margin.bottom;
+            
+            const svg = d3.select('#learning-curve')
+                .append('svg')
+                    .attr('width', width + margin.left + margin.right)
+                    .attr('height', height + margin.top + margin.bottom)
+                .append('g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+            
+            // X axis
+            const x = d3.scaleLinear()
+                .domain([0, 1000])
+                .range([0, width]);
+            
+            svg.append('g')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x));
+            
+            // Y axis
+            const y = d3.scaleLinear()
+                .domain([-1, 1])
+                .range([height, 0]);
+            
+            svg.append('g')
+                .call(d3.axisLeft(y));
+            
+            // Add the line
+            const line = svg.append('path')
+                .datum(trainingData.learningCurve)
+                .attr('fill', 'none')
+                .attr('stroke', '#4CAF50')
+                .attr('stroke-width', 2)
+                .attr('d', d3.line()
+                    .x(d => x(d.episode))
+                    .y(d => y(d.reward))
+                );
+            
+            // Start training button
+            document.getElementById('start-training-btn').addEventListener('click', function() {
+                if (!isTraining) {
+                    startTraining();
+                    this.disabled = true;
+                    document.getElementById('pause-training-btn').disabled = false;
+                }
+            });
+            
+            // Pause training button
+            document.getElementById('pause-training-btn').addEventListener('click', function() {
+                if (isTraining) {
+                    pauseTraining();
+                    this.disabled = true;
+                    document.getElementById('start-training-btn').disabled = false;
+                }
+            });
+            
+            // Reset training button
+            document.getElementById('reset-training-btn').addEventListener('click', function() {
+                resetTraining();
+                document.getElementById('start-training-btn').disabled = false;
+                document.getElementById('pause-training-btn').disabled = true;
+            });
+            
+            // Function to update UI with training data
+            function updateTrainingUI() {
+                document.getElementById('training-progress').textContent = 
+                    `Episode ${trainingData.currentEpisode} of ${trainingData.episodes}`;
+                
+                const progressPercentage = (trainingData.currentEpisode / trainingData.episodes) * 100;
+                document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
+                
+                document.getElementById('current-epsilon').textContent = trainingData.epsilon.toFixed(3);
+                document.getElementById('epsilon-bar').style.width = `${trainingData.epsilon * 100}%`;
+                
+                document.getElementById('win-rate').textContent = `${trainingData.winRate.toFixed(1)}%`;
+                document.getElementById('avg-game-length').textContent = trainingData.avgGameLength.toFixed(1);
+                document.getElementById('avg-reward').textContent = trainingData.avgReward.toFixed(2);
+                
+                // Update learning curve
+                line.datum(trainingData.learningCurve)
+                    .attr('d', d3.line()
+                        .x(d => x(d.episode))
+                        .y(d => y(d.reward))
+                    );
+            }
+            
+            // Function to simulate training progress
+            function startTraining() {
+                isTraining = true;
+                
+                // Get parameters from form
+                const episodes = parseInt(document.getElementById('episodes').value);
+                const initialEpsilon = parseFloat(document.getElementById('initial-epsilon').value);
+                const speed = parseInt(document.getElementById('speed').value);
+                
+                // Update training data with parameters
+                trainingData.episodes = episodes;
+                trainingData.epsilon = initialEpsilon;
+                
+                // Update x-axis domain based on episodes
+                x.domain([0, episodes]);
+                svg.select('g').call(d3.axisBottom(x));
+                
+                // Simulate training process
+                trainingInterval = setInterval(() => {
+                    // Simulate a training episode
+                    trainingData.currentEpisode++;
+                    
+                    // Decrease epsilon slightly
+                    trainingData.epsilon = Math.max(0.01, initialEpsilon * (1 - trainingData.currentEpisode / episodes));
+                    
+                    // Update metrics with some randomness
+                    trainingData.winRate = Math.min(100, 40 * (trainingData.currentEpisode / episodes) + Math.random() * 10);
+                    trainingData.avgGameLength = 30 + (trainingData.currentEpisode / episodes) * 10 + Math.random() * 5;
+                    trainingData.avgReward = -0.5 + trainingData.currentEpisode / episodes + Math.random() * 0.2;
+                    
+                    // Update learning curve
+                    if (trainingData.currentEpisode % 10 === 0) {
+                        trainingData.learningCurve.push({
+                            episode: trainingData.currentEpisode,
+                            reward: trainingData.avgReward
+                        });
+                    }
+                    
+                    // Update UI
+                    updateTrainingUI();
+                    
+                    // Simulate chess position
+                    if (trainingData.currentEpisode % 5 === 0) {
+                        const game = new Chess();
+                        const moves = Math.floor(Math.random() * 20);
+                        
+                        for (let i = 0; i < moves; i++) {
+                            const legalMoves = game.moves();
+                            if (legalMoves.length > 0) {
+                                const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+                                game.move(randomMove);
+                            }
+                        }
+                        
+                        trainingBoard.position(game.fen());
+                        document.getElementById('current-move').textContent = game.history().length;
+                        document.getElementById('current-eval').textContent = (Math.random() * 2 - 1).toFixed(2);
+                        document.getElementById('current-reward').textContent = (Math.random() * 0.2 - 0.1).toFixed(2);
+                    }
+                    
+                    // Check if training is complete
+                    if (trainingData.currentEpisode >= episodes) {
+                        pauseTraining();
+                        document.getElementById('pause-training-btn').disabled = true;
+                        document.getElementById('start-training-btn').disabled = true;
+                    }
+                }, 100 - speed);  // Adjust speed based on slider
+            }
+            
+            // Function to pause training
+            function pauseTraining() {
+                isTraining = false;
+                clearInterval(trainingInterval);
+            }
+            
+            // Function to reset training
+            function resetTraining() {
+                pauseTraining();
+                
+                // Reset training data
+                trainingData = {
+                    episodes: parseInt(document.getElementById('episodes').value),
+                    currentEpisode: 0,
+                    epsilon: parseFloat(document.getElementById('initial-epsilon').value),
+                    winRate: 0,
+                    avgGameLength: 0,
+                    avgReward: 0,
+                    learningCurve: Array(100).fill().map((_, i) => ({ episode: i * 10, reward: 0 }))
+                };
+                
+                // Reset UI
+                updateTrainingUI();
+                trainingBoard.position('start');
+                document.getElementById('current-move').textContent = '0';
+                document.getElementById('current-eval').textContent = '0.0';
+                document.getElementById('current-reward').textContent = '0.0';
+            }
+            
+            // Initialize UI
+            updateTrainingUI();
+            
+            // Helper function to create a chessboard
+            function createChessboard(containerId, size, viewOnly = false) {
+                const container = document.getElementById(containerId);
+                const board = document.createElement('div');
+                board.style.width = `${size}px`;
+                board.style.height = `${size}px`;
+                board.style.position = 'relative';
+                container.appendChild(board);
+                
+                // Create squares
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        const square = document.createElement('div');
+                        square.style.position = 'absolute';
+                        square.style.width = `${size/8}px`;
+                        square.style.height = `${size/8}px`;
+                        square.style.top = `${row * size/8}px`;
+                        square.style.left = `${col * size/8}px`;
+                        
+                        // Alternating colors for chess board
+                        if ((row + col) % 2 === 0) {
+                            square.style.backgroundColor = 'white';
+                        } else {
+                            square.style.backgroundColor = '#4CAF50';  // Green for the dark squares
+                        }
+                        
+                        board.appendChild(square);
+                    }
+                }
+                
+                // Simple interface to update the board
+                return {
+                    position: function(fen) {
+                        // In a real implementation, this would show the pieces based on FEN
+                        // For the training visualization, we just need to show position changes
+                    }
+                };
+            }
+        });
+    </script>
+</body>
+</html>

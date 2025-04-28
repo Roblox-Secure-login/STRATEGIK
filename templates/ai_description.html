@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Description - STRATEGIK Chess</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <header class="navbar navbar-expand-lg navbar-dark bg-success">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">STRATEGIK</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Play AI</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/watch-training">Watch Training</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/ai-description">AI Description</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/about">About</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <main class="container py-4">
+        <h1 class="text-center mb-4">AI Description</h1>
+        
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h2 class="mb-3">Deep Q-Learning Network (DQN)</h2>
+                        <p>STRATEGIK uses a Deep Q-Learning Network (DQN), a type of reinforcement learning algorithm that combines Q-learning with deep neural networks. Here's how it works:</p>
+                        
+                        <h3 class="mt-4 mb-3">Core Components</h3>
+                        
+                        <div class="mb-4">
+                            <h4>Q-Learning</h4>
+                            <p>Q-learning is a model-free reinforcement learning algorithm that learns the value of an action in a particular state. The algorithm creates a Q-table where each cell represents the expected reward of taking an action in a specific state.</p>
+                            
+                            <div class="card bg-light mb-3">
+                                <div class="card-body">
+                                    <p class="card-text"><strong>Q-Learning Update Rule:</strong></p>
+                                    <p class="card-text text-center">Q(s,a) ← Q(s,a) + α[r + γ·max<sub>a'</sub>Q(s',a') - Q(s,a)]</p>
+                                    <p class="card-text">Where:</p>
+                                    <ul>
+                                        <li>s, a are the current state and action</li>
+                                        <li>s', a' are the next state and action</li>
+                                        <li>α is the learning rate</li>
+                                        <li>γ is the discount factor</li>
+                                        <li>r is the reward</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h4>Deep Neural Network</h4>
+                            <p>In chess, the state space is too large for a simple Q-table. Instead, DQN uses a neural network to approximate the Q-function. The network takes the board state as input and outputs the estimated value of each possible move.</p>
+                            
+                            <div class="text-center mb-3">
+                                <svg width="500" height="200" id="neural-network-diagram"></svg>
+                            </div>
+                            
+                            <p>Our neural network structure:</p>
+                            <ul>
+                                <li><strong>Input Layer:</strong> 768 neurons (8x8 board × 12 piece types)</li>
+                                <li><strong>Hidden Layers:</strong> Multiple fully connected layers with ReLU activation</li>
+                                <li><strong>Output Layer:</strong> Single neuron representing the board evaluation</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h4>Epsilon-Greedy Exploration</h4>
+                            <p>To balance exploration (trying new moves) with exploitation (using known good moves), STRATEGIK uses an epsilon-greedy strategy:</p>
+                            <ul>
+                                <li>With probability ε (epsilon), choose a random move (exploration)</li>
+                                <li>With probability 1-ε, choose the move with the highest expected value (exploitation)</li>
+                                <li>ε gradually decreases as the AI gains experience</li>
+                            </ul>
+                        </div>
+                        
+                        <h3 class="mt-4 mb-3">Training Process</h3>
+                        <p>The DQN is trained through a combination of:</p>
+                        <ul>
+                            <li><strong>Self-play:</strong> The AI plays against itself, learning from each game</li>
+                            <li><strong>Experience replay:</strong> Storing and reusing past experiences to improve learning efficiency</li>
+                            <li><strong>Games against users:</strong> Learning from human opponents provides diverse strategies</li>
+                        </ul>
+                        
+                        <h3 class="mt-4 mb-3">Evaluation Function</h3>
+                        <p>To evaluate chess positions, the DQN considers multiple factors:</p>
+                        <ul>
+                            <li>Material balance</li>
+                            <li>Piece positioning</li>
+                            <li>King safety</li>
+                            <li>Control of the center</li>
+                            <li>Pawn structure</li>
+                            <li>Mobility of pieces</li>
+                        </ul>
+                        
+                        <p>These factors are not explicitly programmed but are learned by the network through training.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="py-4 bg-light mt-5">
+        <div class="container text-center">
+            <p>STRATEGIK - Chess AI with Deep Q-Learning Neural Network</p>
+            <p>Built with Python, Flask and JavaScript</p>
+            <p>Watch the AI learn and improve through self-play and your moves</p>
+            <p class="mb-0">&copy; 2025 STRATEGIK | An intelligent chess platform for learning and exploration</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- D3.js for visualization -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <script>
+        // Simple neural network diagram using D3.js
+        document.addEventListener("DOMContentLoaded", function() {
+            const svg = d3.select("#neural-network-diagram");
+            const width = 500;
+            const height = 200;
+            
+            // Layer configuration
+            const layers = [
+                { name: "input", neurons: 5, x: 50 },
+                { name: "hidden1", neurons: 8, x: 175 },
+                { name: "hidden2", neurons: 6, x: 300 },
+                { name: "output", neurons: 3, x: 425 }
+            ];
+            
+            // Create neurons
+            let neurons = [];
+            layers.forEach(layer => {
+                const neuronHeight = height / (layer.neurons + 1);
+                for (let i = 0; i < layer.neurons; i++) {
+                    neurons.push({
+                        x: layer.x,
+                        y: (i + 1) * neuronHeight,
+                        layer: layer.name
+                    });
+                }
+            });
+            
+            // Create connections between layers
+            let connections = [];
+            for (let l = 0; l < layers.length - 1; l++) {
+                const from = neurons.filter(n => n.layer === layers[l].name);
+                const to = neurons.filter(n => n.layer === layers[l+1].name);
+                
+                from.forEach(source => {
+                    to.forEach(target => {
+                        connections.push({
+                            source: source,
+                            target: target
+                        });
+                    });
+                });
+            }
+            
+            // Draw connections
+            svg.selectAll("line")
+                .data(connections)
+                .enter()
+                .append("line")
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y)
+                .attr("stroke", "#ccc")
+                .attr("stroke-width", 0.5);
+            
+            // Draw neurons
+            svg.selectAll("circle")
+                .data(neurons)
+                .enter()
+                .append("circle")
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y)
+                .attr("r", 6)
+                .attr("fill", d => {
+                    if (d.layer === "input") return "#6EB5FF";
+                    if (d.layer === "output") return "#FFA07A";
+                    return "#98D8C8";
+                });
+            
+            // Add layer labels
+            svg.selectAll("text")
+                .data(layers)
+                .enter()
+                .append("text")
+                .attr("x", d => d.x)
+                .attr("y", 20)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "12px")
+                .text(d => {
+                    if (d.name === "input") return "Input Layer";
+                    if (d.name === "output") return "Output Layer";
+                    return "Hidden Layer";
+                });
+        });
+    </script>
+</body>
+</html>
