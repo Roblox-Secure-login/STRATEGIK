@@ -1,7 +1,7 @@
 from datetime import datetime
 import json
 import os
-from app import db
+from database import db
 
 class GameHistory(db.Model):
     """Model to represent a chess game played by the AI or a user"""

@@ -3,7 +3,7 @@ import logging
 import uuid
 import json
 from flask import Flask, render_template, jsonify, request
-from flask_sqlalchemy import SQLAlchemy
+from database import db
 from chess_engine import ChessEngine
 from dqn_agent import DQNAgent
 
@@ -21,9 +21,6 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
 }
-
-# Initialize the database
-db = SQLAlchemy(app)
 
 # Initialize the chess engine and DQN agent
 chess_engine = ChessEngine()
@@ -112,13 +109,68 @@ def start_training():
     try:
         training_results = dqn_agent.self_play_training(num_games)
         
+        # Save training session to database
+        training_id = str(uuid.uuid4())
+        
+        # Create training stats summary
+        total_games = len(training_results)
+        white_wins = sum(1 for game in training_results if game['result'] == '1-0')
+        black_wins = sum(1 for game in training_results if game['result'] == '0-1')
+        draws = sum(1 for game in training_results if game['result'] == '1/2-1/2')
+        avg_game_length = sum(game['moves'] for game in training_results) / max(1, total_games)
+        avg_reward = sum(game['reward'] for game in training_results) / max(1, total_games)
+        
+        # Import models here to avoid circular imports
+        import models
+        
+        # Save to database
+        stats = models.TrainingStats(
+            training_session=training_id,
+            total_games=total_games,
+            white_wins=white_wins,
+            black_wins=black_wins,
+            draws=draws,
+            avg_game_length=avg_game_length,
+            avg_reward=avg_reward,
+            epsilon=dqn_agent.epsilon,
+            alpha=dqn_agent.alpha,
+            gamma=dqn_agent.gamma,
+            positions_evaluated=dqn_agent.position_count
+        )
+        db.session.add(stats)
+        
+        # Save each game to the database
+        for i, game_data in enumerate(training_results):
+            game_id = str(uuid.uuid4())
+            # Convert the move list to JSON string
+            moves_json = json.dumps(game_data.get('moves_list', []))
+            
+            game = models.GameHistory(
+                game_id=game_id,
+                moves=moves_json,
+                result=game_data['result'],
+                white_player="AI",
+                black_player="AI",
+                game_type="self-play",
+                evaluation=game_data.get('reward', 0)
+            )
+            db.session.add(game)
+        
+        db.session.commit()
+        
         return jsonify({
             'status': 'success',
-            'games_completed': len(training_results),
-            'training_data': training_results
+            'games_completed': total_games,
+            'training_data': training_results,
+            'summary': {
+                'white_wins_percent': (white_wins / total_games) * 100 if total_games > 0 else 0,
+                'black_wins_percent': (black_wins / total_games) * 100 if total_games > 0 else 0,
+                'draws_percent': (draws / total_games) * 100 if total_games > 0 else 0
+            }
         })
     except Exception as e:
         logging.error(f"Error in training: {e}")
+        db.session.rollback()
         return jsonify({
             'status': 'error',
             'message': str(e)
@@ -128,11 +180,45 @@ def start_training():
 def get_training_stats():
     """Get statistics about the AI's training progress"""
     try:
-        stats = dqn_agent.get_training_stats()
+        # Get in-memory stats from the agent
+        agent_stats = dqn_agent.get_training_stats()
+        
+        # Get database stats
+        db_stats = models.TrainingStats.query.order_by(models.TrainingStats.timestamp.desc()).first()
+        
+        if db_stats:
+            # Add database stats if available
+            combined_stats = {
+                'total_games': db_stats.total_games,
+                'white_wins': db_stats.white_wins,
+                'black_wins': db_stats.black_wins,
+                'draws': db_stats.draws,
+                'white_win_percentage': db_stats.white_win_percentage(),
+                'black_win_percentage': db_stats.black_win_percentage(),
+                'draw_percentage': db_stats.draw_percentage(),
+                'avg_game_length': db_stats.avg_game_length,
+                'avg_reward': db_stats.avg_reward,
+                'epsilon': db_stats.epsilon,
+                'alpha': db_stats.alpha,
+                'gamma': db_stats.gamma,
+                'positions_evaluated': db_stats.positions_evaluated,
+                'last_updated': db_stats.timestamp.isoformat(),
+                # Include agent's in-memory data
+                'last_game': agent_stats.get('last_game', []),
+                'training_history': agent_stats.get('training_history', [])
+            }
+        else:
+            # Fall back to agent stats if no database records
+            combined_stats = agent_stats
+            
+        # Get count of games in database
+        game_count = models.GameHistory.query.count()
+        if game_count:
+            combined_stats['total_stored_games'] = game_count
         
         return jsonify({
             'status': 'success',
-            'stats': stats
+            'stats': combined_stats
         })
     except Exception as e:
         logging.error(f"Error getting training stats: {e}")

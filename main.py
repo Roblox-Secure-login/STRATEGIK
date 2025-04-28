@@ -1,8 +1,13 @@
-from app import app, db
+from flask import Flask
+from database import db
+import models
+from app import app
+
+# Initialize the Flask app with the database
+db.init_app(app)
 
 # Create database tables if they don't exist
 with app.app_context():
-    import models  # Import models after app is created to avoid circular imports
     db.create_all()
 
 if __name__ == "__main__":
