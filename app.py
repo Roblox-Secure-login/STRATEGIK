@@ -131,9 +131,9 @@ def start_training():
     data = request.get_json()
     num_games = data.get('num_games', 10)
     
-    # Limit max games for web requests to prevent timeout
-    if num_games > 50:
-        num_games = min(num_games, 50)
+    # Limit max games for web requests to prevent timeout, allowing up to 1000 games
+    if num_games > 1000:
+        num_games = min(num_games, 1000)
         logging.info(f"Limited training games to {num_games} to prevent timeout")
     
     # Start training

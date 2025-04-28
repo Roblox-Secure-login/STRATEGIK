@@ -7,8 +7,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize the chess board
     const board = createChessboard('chessboard', 400);
     
-    // Initialize the DQN visualization
-    const networkViz = new NetworkVisualization('network-visualization');
+    // Initialize the DQN visualization if the container exists
+    let networkViz;
+    if (document.getElementById('network-visualization')) {
+        networkViz = new NetworkVisualization('network-visualization');
+    }
     
     // Get the buttons
     const newGameBtn = document.getElementById('new-game-btn');
