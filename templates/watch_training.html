@@ -283,6 +283,44 @@
                 moveHistory: []
             };
             
+            // Function to update progress bars
+            function updateProgressBars(stats) {
+                // Update white/black win bars
+                const whiteWinBar = document.getElementById('white-win-bar');
+                const blackWinBar = document.getElementById('black-win-bar');
+                const drawBar = document.getElementById('draw-bar');
+                const winRatioText = document.getElementById('win-ratio-text');
+                
+                if (whiteWinBar && blackWinBar && drawBar) {
+                    const whiteWinPct = stats.white_win_percentage || 0;
+                    const blackWinPct = stats.black_win_percentage || 0;
+                    const drawPct = stats.draw_percentage || 0;
+                    
+                    whiteWinBar.style.width = `${whiteWinPct}%`;
+                    blackWinBar.style.width = `${blackWinPct}%`;
+                    drawBar.style.width = `${drawPct}%`;
+                    
+                    if (winRatioText) {
+                        winRatioText.textContent = `${whiteWinPct.toFixed(1)}% / ${blackWinPct.toFixed(1)}%`;
+                    }
+                }
+                
+                // Update total games bar
+                const totalGamesBar = document.getElementById('total-games-bar');
+                if (totalGamesBar) {
+                    const totalGames = stats.total_stored_games || stats.total_games || 0;
+                    // Scale the bar - shows 100% at 1000 games
+                    const gamesPct = Math.min(totalGames / 10, 100);
+                    totalGamesBar.style.width = `${gamesPct}%`;
+                }
+                
+                // Update epsilon bar
+                const epsilonBar = document.getElementById('epsilon-bar');
+                if (epsilonBar && stats.epsilon !== undefined) {
+                    epsilonBar.style.width = `${stats.epsilon * 100}%`;
+                }
+            }
+            
             // Training controls
             let trainingInterval;
             let isTraining = false;
@@ -403,14 +441,29 @@
             
             // Function to update UI with training data
             function updateTrainingUI() {
-                document.getElementById('training-progress').textContent = 
-                    `Episode ${trainingData.currentEpisode} of ${trainingData.episodes}`;
+                // Check if elements exist before trying to update them
+                // This prevents errors when elements are removed or renamed
+                const trainingProgressEl = document.getElementById('training-progress');
+                const progressBarEl = document.getElementById('progress-bar');
+                const epsilonEl = document.getElementById('current-epsilon');
+                const epsilonBarEl = document.getElementById('epsilon-bar');
                 
-                const progressPercentage = (trainingData.currentEpisode / trainingData.episodes) * 100;
-                document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
+                if (trainingProgressEl && trainingData && trainingData.currentEpisode !== undefined) {
+                    trainingProgressEl.textContent = `Episode ${trainingData.currentEpisode} of ${trainingData.episodes}`;
+                }
                 
-                document.getElementById('current-epsilon').textContent = trainingData.epsilon.toFixed(3);
-                document.getElementById('epsilon-bar').style.width = `${trainingData.epsilon * 100}%`;
+                if (progressBarEl && trainingData && trainingData.episodes) {
+                    const progressPercentage = (trainingData.currentEpisode / trainingData.episodes) * 100;
+                    progressBarEl.style.width = `${progressPercentage}%`;
+                }
+                
+                if (epsilonEl && trainingData && trainingData.epsilon !== undefined) {
+                    epsilonEl.textContent = trainingData.epsilon.toFixed(3);
+                }
+                
+                if (epsilonBarEl && trainingData && trainingData.epsilon !== undefined) {
+                    epsilonBarEl.style.width = `${trainingData.epsilon * 100}%`;
+                }
                 
                 // Update white wins, black wins, and draws using the latest DQN agent statistics
                 fetch('/api/get-training-stats')
@@ -418,24 +471,36 @@
                     .then(data => {
                         if (data.status === 'success' && data.stats) {
                             const stats = data.stats;
-                            if (stats.white_win_percentage !== undefined) {
-                                document.getElementById('white-win-rate').textContent = `${stats.white_win_percentage.toFixed(1)}%`;
-                            }
-                            if (stats.black_win_percentage !== undefined) {
-                                document.getElementById('black-win-rate').textContent = `${stats.black_win_percentage.toFixed(1)}%`;
-                            }
-                            if (stats.draw_percentage !== undefined) {
-                                document.getElementById('draw-rate').textContent = `${stats.draw_percentage.toFixed(1)}%`;
-                            }
-                            if (stats.avg_game_length !== undefined) {
-                                document.getElementById('avg-game-length').textContent = stats.avg_game_length.toFixed(1);
-                            }
-                            if (stats.avg_reward !== undefined) {
-                                document.getElementById('avg-reward').textContent = stats.avg_reward.toFixed(2);
-                            }
-                            if (stats.total_games !== undefined) {
-                                document.getElementById('total-games').textContent = stats.total_games;
-                            }
+                            const els = {
+                                'white-win-rate': stats.white_win_percentage,
+                                'black-win-rate': stats.black_win_percentage,
+                                'draw-rate': stats.draw_percentage,
+                                'avg-game-length': stats.avg_game_length,
+                                'avg-reward': stats.avg_reward,
+                                'total-games': stats.total_games,
+                                'total-games-count': stats.total_stored_games || stats.total_games
+                            };
+                            
+                            // Update elements only if they exist
+                            Object.entries(els).forEach(([id, value]) => {
+                                const el = document.getElementById(id);
+                                if (el && value !== undefined) {
+                                    if (id.includes('rate') || id.includes('percentage')) {
+                                        el.textContent = `${value.toFixed(1)}%`;
+                                    } else if (id === 'avg-reward') {
+                                        el.textContent = value.toFixed(2);
+                                    } else if (id === 'avg-game-length') {
+                                        el.textContent = value.toFixed(1);
+                                    } else if (id === 'total-games-count') {
+                                        el.textContent = `${value} games`;
+                                    } else {
+                                        el.textContent = value.toString();
+                                    }
+                                }
+                            });
+                            
+                            // Update progress bars
+                            updateProgressBars(stats);
                         }
                     })
                     .catch(error => {
