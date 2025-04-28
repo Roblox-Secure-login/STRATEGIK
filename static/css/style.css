@@ -124,6 +124,74 @@ body {
     .card {
         margin-bottom: 1.5rem;
     }
+    
+    /* Improve mobile navigation */
+    .navbar-toggler {
+        border: none;
+        padding: 0.5rem;
+    }
+    
+    .navbar-nav {
+        margin-top: 1rem;
+    }
+    
+    .nav-link {
+        padding: 0.75rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Improved button spacing on mobile */
+    .btn {
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Make chess board responsive on very small screens */
+    #chessboard-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* Additional mobile optimizations */
+@media (max-width: 576px) {
+    h1 {
+        font-size: 1.8rem;
+    }
+    
+    h2 {
+        font-size: 1.5rem;
+    }
+    
+    h3 {
+        font-size: 1.3rem;
+    }
+    
+    /* Make the control buttons stack better on small screens */
+    .d-flex.justify-content-center.gap-2 {
+        flex-wrap: wrap;
+    }
+    
+    /* Adjustments for the training visualization */
+    #training-board {
+        max-width: 280px;
+        margin: 0 auto;
+    }
+    
+    /* Ensure inputs are easier to tap */
+    input, select, button {
+        min-height: 44px;
+    }
+    
+    /* Improve footer readability */
+    footer {
+        font-size: 0.8rem;
+        padding: 1.5rem 0;
+    }
+    
+    /* Improve network visualization on small screens */
+    #network-visualization {
+        height: 150px;
+    }
 }
 
 /* Cards styling */

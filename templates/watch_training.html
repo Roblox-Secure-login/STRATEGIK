@@ -141,7 +141,8 @@
                         <div class="text-center mt-4">
                             <button id="start-training-btn" class="btn btn-success me-2">Start Training</button>
                             <button id="pause-training-btn" class="btn btn-warning me-2" disabled>Pause</button>
-                            <button id="reset-training-btn" class="btn btn-danger">Reset</button>
+                            <button id="reset-training-btn" class="btn btn-danger me-2">Reset</button>
+                            <button id="self-play-btn" class="btn btn-primary">Run Self-Play (10 Games)</button>
                         </div>
                     </div>
                 </div>
@@ -343,6 +344,53 @@
                 document.getElementById('pause-training-btn').disabled = true;
             });
             
+            // Self-Play button - Run 10 games directly with the DQN agent
+            document.getElementById('self-play-btn').addEventListener('click', async function() {
+                this.disabled = true;
+                this.textContent = 'Running Self-Play...';
+                document.getElementById('white-win-rate').textContent = 'Running...';
+                document.getElementById('black-win-rate').textContent = 'Running...';
+                document.getElementById('draw-rate').textContent = 'Running...';
+                
+                try {
+                    // Call the API endpoint to start training
+                    const response = await fetch('/api/start-training', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ num_games: 10 })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        // Update the UI with results
+                        document.getElementById('white-win-rate').textContent = 
+                            `${data.summary.white_wins_percent.toFixed(1)}%`;
+                        document.getElementById('black-win-rate').textContent = 
+                            `${data.summary.black_wins_percent.toFixed(1)}%`;
+                        document.getElementById('draw-rate').textContent = 
+                            `${data.summary.draws_percent.toFixed(1)}%`;
+                            
+                        // Get updated stats
+                        await dqnInterface.getTrainingStats();
+                        
+                        // Show success message
+                        alert(`Self-play completed successfully with ${data.games_completed} games!`);
+                    } else {
+                        console.error('Error running self-play:', data.message);
+                        alert('Error during self-play. Check console for details.');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error during self-play. Check console for details.');
+                } finally {
+                    this.disabled = false;
+                    this.textContent = 'Run Self-Play (10 Games)';
+                }
+            });
+            
             // Function to update UI with training data
             function updateTrainingUI() {
                 document.getElementById('training-progress').textContent = 
@@ -354,9 +402,35 @@
                 document.getElementById('current-epsilon').textContent = trainingData.epsilon.toFixed(3);
                 document.getElementById('epsilon-bar').style.width = `${trainingData.epsilon * 100}%`;
                 
-                document.getElementById('win-rate').textContent = `${trainingData.winRate.toFixed(1)}%`;
-                document.getElementById('avg-game-length').textContent = trainingData.avgGameLength.toFixed(1);
-                document.getElementById('avg-reward').textContent = trainingData.avgReward.toFixed(2);
+                // Update white wins, black wins, and draws using the latest DQN agent statistics
+                fetch('/api/get-training-stats')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success' && data.stats) {
+                            const stats = data.stats;
+                            if (stats.white_win_percentage !== undefined) {
+                                document.getElementById('white-win-rate').textContent = `${stats.white_win_percentage.toFixed(1)}%`;
+                            }
+                            if (stats.black_win_percentage !== undefined) {
+                                document.getElementById('black-win-rate').textContent = `${stats.black_win_percentage.toFixed(1)}%`;
+                            }
+                            if (stats.draw_percentage !== undefined) {
+                                document.getElementById('draw-rate').textContent = `${stats.draw_percentage.toFixed(1)}%`;
+                            }
+                            if (stats.avg_game_length !== undefined) {
+                                document.getElementById('avg-game-length').textContent = stats.avg_game_length.toFixed(1);
+                            }
+                            if (stats.avg_reward !== undefined) {
+                                document.getElementById('avg-reward').textContent = stats.avg_reward.toFixed(2);
+                            }
+                            if (stats.total_games !== undefined) {
+                                document.getElementById('total-games').textContent = stats.total_games;
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error fetching training stats:", error);
+                    });
                 
                 // Update learning curve
                 line.datum(trainingData.learningCurve)

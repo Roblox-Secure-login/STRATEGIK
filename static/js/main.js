@@ -127,10 +127,24 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('resize', function() {
         const container = document.getElementById('chessboard-container');
         if (container) {
-            const width = Math.min(400, container.clientWidth - 20);
+            // Calculate the maximum available width with a padding
+            const containerWidth = container.clientWidth;
+            const isMobile = window.innerWidth < 576;
+            
+            // On mobile, use nearly full width; on desktop, cap at 400px
+            const width = isMobile ? 
+                Math.min(320, containerWidth - 10) : // Mobile (smaller padding)
+                Math.min(400, containerWidth - 20);  // Desktop
+            
             board.size = width;
             board.squareSize = width / 8;
             board.renderBoard();
+            
+            // On very small screens, ensure the container is centered
+            if (isMobile) {
+                container.style.display = 'flex';
+                container.style.justifyContent = 'center';
+            }
         }
     });
     
