@@ -33,6 +33,25 @@ logging.info(f"Using SQLite database at: {db_path}")
 chess_engine = ChessEngine()
 dqn_agent = DQNAgent()
 
+# Pre-load database games into the DQN agent when the application starts
+# This ensures the AI retains knowledge across application restarts
+def load_games_at_startup():
+    """Load games from database into AI memory on first request"""
+    # We'll load games only once
+    if not hasattr(load_games_at_startup, 'loaded'):
+        logging.info("Loading past games from database into AI memory...")
+        try:
+            dqn_agent.load_games_from_database(aggressive_training=True)
+            load_games_at_startup.loaded = True
+            logging.info("Successfully loaded games from database")
+        except Exception as e:
+            logging.error(f"Error loading games at startup: {e}")
+            
+# Register route to trigger database loading on first access
+@app.before_request
+def before_request():
+    load_games_at_startup()
+
 @app.route('/')
 def home():
     return render_template('about.html')  # Using about.html as the homepage
