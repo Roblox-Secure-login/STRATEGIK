@@ -268,6 +268,10 @@ class DQNInterface {
             
             if (data.status === 'success') {
                 this.trainingStats = data.stats;
+                
+                // Update the UI with the database stats
+                this.updateTrainingStatsDisplay(data.stats);
+                
                 return data.stats;
             } else {
                 throw new Error(data.message || 'Unknown error');
@@ -275,6 +279,54 @@ class DQNInterface {
         } catch (error) {
             console.error('Error getting training stats:', error);
             return null;
+        }
+    }
+    
+    /**
+     * Update the UI with training statistics
+     * @param {Object} stats - The training statistics data
+     */
+    updateTrainingStatsDisplay(stats) {
+        // Update win/loss/draw percentages
+        if (document.getElementById('white-win-rate')) {
+            document.getElementById('white-win-rate').textContent = stats.white_win_percentage ? 
+                `${stats.white_win_percentage.toFixed(1)}%` : '0%';
+        }
+        
+        if (document.getElementById('black-win-rate')) {
+            document.getElementById('black-win-rate').textContent = stats.black_win_percentage ? 
+                `${stats.black_win_percentage.toFixed(1)}%` : '0%';
+        }
+        
+        if (document.getElementById('draw-rate')) {
+            document.getElementById('draw-rate').textContent = stats.draw_percentage ? 
+                `${stats.draw_percentage.toFixed(1)}%` : '0%';
+        }
+        
+        // Update other statistics
+        if (document.getElementById('avg-game-length')) {
+            document.getElementById('avg-game-length').textContent = 
+                stats.avg_game_length ? stats.avg_game_length.toFixed(1) : '0';
+        }
+        
+        if (document.getElementById('avg-reward')) {
+            document.getElementById('avg-reward').textContent = 
+                stats.avg_reward ? stats.avg_reward.toFixed(2) : '0.0';
+        }
+        
+        if (document.getElementById('total-games')) {
+            document.getElementById('total-games').textContent = 
+                stats.total_games ? stats.total_games : '0';
+        }
+        
+        // Update epsilon
+        if (document.getElementById('current-epsilon')) {
+            document.getElementById('current-epsilon').textContent = 
+                stats.epsilon ? stats.epsilon.toFixed(3) : '0.1';
+            
+            if (document.getElementById('epsilon-bar')) {
+                document.getElementById('epsilon-bar').style.width = `${stats.epsilon * 100}%`;
+            }
         }
     }
     

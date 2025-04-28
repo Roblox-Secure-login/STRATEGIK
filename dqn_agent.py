@@ -366,11 +366,67 @@ class DQNAgent:
     def load_games_from_database(self):
         """Load past games from the database for learning"""
         try:
-            # This is just a placeholder - the actual database access happens in app.py
-            # The knowledge from past games is incorporated when the agent uses its
-            # values stored in board_values and through experience replay
-            self.logger.info("Loading knowledge from past games...")
-            return True
+            # Import here to avoid circular imports
+            import models
+            from app import db
+            
+            # Count available games
+            game_count = models.GameHistory.query.count()
+            if game_count == 0:
+                self.logger.info("No past games found in the database.")
+                return False
+                
+            self.logger.info(f"Loading knowledge from {game_count} past games...")
+            
+            # Get past games from database
+            past_games = models.GameHistory.query.all()
+            games_processed = 0
+            
+            # Process each game
+            for game in past_games:
+                try:
+                    # Get moves list from JSON string
+                    moves = game.get_moves_list()
+                    if not moves:
+                        continue
+                        
+                    # Play through the game to learn from it
+                    board = chess.Board()
+                    for i in range(len(moves) - 1):
+                        move_uci = moves[i]
+                        move = chess.Move.from_uci(move_uci)
+                        
+                        # Current state before the move
+                        current_fen = board.fen()
+                        
+                        # Make the move
+                        board.push(move)
+                        next_fen = board.fen()
+                        
+                        # Calculate reward (simplified)
+                        reward = 0
+                        if board.is_checkmate():
+                            reward = 100 if not board.turn == chess.WHITE else -100
+                        elif board.is_stalemate() or board.is_insufficient_material():
+                            reward = 0
+                        elif board.is_check():
+                            reward = 1 if board.turn == chess.WHITE else -1
+                            
+                        # Add this position to memory for experience replay
+                        self.memory.append((current_fen, move_uci, reward, next_fen))
+                    
+                    games_processed += 1
+                except Exception as e:
+                    self.logger.error(f"Error processing game: {e}")
+                    continue
+            
+            self.logger.info(f"Successfully processed {games_processed} games from database.")
+            
+            # Train on loaded experiences
+            if len(self.memory) >= self.min_replay_size:
+                self.train_with_replay()
+                
+            return games_processed > 0
         except Exception as e:
             self.logger.error(f"Error loading past games: {e}")
             return False
@@ -438,6 +494,7 @@ class DQNAgent:
             training_data.append({
                 "game": self.total_games,
                 "moves": move_count,
+                "moves_list": game_moves,  # Store the actual list of moves in UCI format
                 "result": result,
                 "reward": game_reward,
                 "epsilon": self.epsilon

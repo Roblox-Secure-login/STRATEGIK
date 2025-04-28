@@ -183,6 +183,9 @@ def get_training_stats():
         # Get in-memory stats from the agent
         agent_stats = dqn_agent.get_training_stats()
         
+        # Import models here to avoid circular imports
+        import models
+        
         # Get database stats
         db_stats = models.TrainingStats.query.order_by(models.TrainingStats.timestamp.desc()).first()
         
