@@ -12,11 +12,11 @@ logging.basicConfig(level=logging.DEBUG)
 
 # Create the Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "strategik-chess-ai-secret")
+app.secret_key = os.environ.get("SESSION_SECRET", "strategyk-chess-ai-secret")
 
 # Set up database path - use SQLite for portability and store in workspace
 # Using workspace root directory makes the db file more accessible for download
-db_path = os.path.join(os.path.expanduser("~"), "workspace", "strategik_chess.db")
+db_path = os.path.join(os.path.expanduser("~"), "workspace", "strategyk_chess.db")
 
 # Configure the database
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
