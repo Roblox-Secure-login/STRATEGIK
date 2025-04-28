@@ -14,12 +14,17 @@ logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "strategik-chess-ai-secret")
 
-# Set up database path - use SQLite for portability
-db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'strategik_chess.db')
+# Set up database path - use SQLite for portability and store in workspace
+# Using workspace root directory makes the db file more accessible for download
+db_path = os.path.join(os.path.expanduser("~"), "workspace", "strategik_chess.db")
 
 # Configure the database
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,  # Verify database connection before query
+    "pool_recycle": 300     # Recycle connections every 5 minutes
+}
 
 # Log the database location
 logging.info(f"Using SQLite database at: {db_path}")
@@ -304,13 +309,17 @@ def save_game():
         db.session.commit()
         
         # After saving, refresh the DQN agent's knowledge
-        # This allows it to learn from the newly saved game in future training
-        dqn_agent.load_games_from_database()
+        # Aggressively train on this new game immediately with True flag
+        dqn_agent.load_games_from_database(aggressive_training=True)
+        
+        # Get updated stats for the UI
+        agent_stats = dqn_agent.get_training_stats()
         
         return jsonify({
             'status': 'success',
-            'message': 'Game saved successfully',
-            'game_id': game.game_id
+            'message': 'Game saved and learned from successfully',
+            'game_id': game.game_id,
+            'stats': agent_stats 
         })
     except Exception as e:
         logging.error(f"Error saving game: {e}")

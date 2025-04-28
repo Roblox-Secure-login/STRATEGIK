@@ -382,8 +382,13 @@ class DQNAgent:
                 reward + self.gamma * self.board_values[next_state] - self.board_values[state]
             )
     
-    def load_games_from_database(self):
-        """Load past games from the database for learning"""
+    def load_games_from_database(self, aggressive_training=True):
+        """Load past games from the database for learning
+        
+        Args:
+            aggressive_training: If True, trains on each game after loading to 
+                                immediately incorporate knowledge
+        """
         try:
             # Import here to avoid circular imports
             import models
@@ -397,18 +402,25 @@ class DQNAgent:
                 
             self.logger.info(f"Loading knowledge from {game_count} past games...")
             
-            # Get past games from database
-            past_games = models.GameHistory.query.all()
+            # Get past games from database - sort by timestamp to prioritize newer games
+            past_games = models.GameHistory.query.order_by(models.GameHistory.timestamp.desc()).all()
             games_processed = 0
+            batch_size = 10  # Process games in batches for more efficient training
             
             # Process each game
-            for game in past_games:
+            for game_idx, game in enumerate(past_games):
                 try:
                     # Get moves list from JSON string
                     moves = game.get_moves_list()
                     if not moves:
                         continue
                         
+                    # Extract game result to assign appropriate rewards
+                    result = game.result
+                    white_win = result == "1-0"
+                    black_win = result == "0-1"
+                    is_draw = result == "1/2-1/2"
+                    
                     # Play through the game to learn from it
                     board = chess.Board()
                     for i in range(len(moves) - 1):
@@ -417,12 +429,15 @@ class DQNAgent:
                         
                         # Current state before the move
                         current_fen = board.fen()
+                        current_features = self.board_to_features(current_fen)
                         
                         # Make the move
                         board.push(move)
                         next_fen = board.fen()
+                        next_features = self.board_to_features(next_fen)
                         
-                        # Calculate reward (simplified)
+                        # Calculate reward based on game outcome
+                        # Higher rewards for moves that led to victory
                         reward = 0
                         if board.is_checkmate():
                             reward = 100 if not board.turn == chess.WHITE else -100
@@ -430,20 +445,47 @@ class DQNAgent:
                             reward = 0
                         elif board.is_check():
                             reward = 1 if board.turn == chess.WHITE else -1
-                            
-                        # Add this position to memory for experience replay
+                        elif i == len(moves) - 2:  # Last move
+                            if white_win and board.turn == chess.BLACK:  # White's move led to win
+                                reward = 10
+                            elif black_win and board.turn == chess.WHITE:  # Black's move led to win
+                                reward = -10
+                            elif is_draw:
+                                reward = 0
+                                               
+                        # Store transitions in both raw form and feature form for flexibility
                         self.memory.append((current_fen, move_uci, reward, next_fen))
+                        
+                        # Also store processed features for faster training
+                        if current_features not in self.board_values:
+                            self.board_values[current_features] = 0
+                            
+                        # Update position values directly from stored games
+                        if white_win and board.turn == chess.WHITE:
+                            self.board_values[current_features] += 0.1
+                        elif black_win and board.turn == chess.BLACK:
+                            self.board_values[current_features] -= 0.1
                     
                     games_processed += 1
+                    
+                    # Train in batches to immediately incorporate knowledge
+                    if aggressive_training and games_processed % batch_size == 0:
+                        self.logger.info(f"Processing batch of {batch_size} games, running training...")
+                        if len(self.memory) >= self.min_replay_size:
+                            # More intense training on recent games
+                            for _ in range(3):  # Train multiple times on each batch
+                                self.train_with_replay()
                 except Exception as e:
                     self.logger.error(f"Error processing game: {e}")
                     continue
             
             self.logger.info(f"Successfully processed {games_processed} games from database.")
             
-            # Train on loaded experiences
+            # Final training pass after loading all games
             if len(self.memory) >= self.min_replay_size:
-                self.train_with_replay()
+                self.logger.info("Running final training pass on all loaded games...")
+                for _ in range(5):  # Multiple training passes
+                    self.train_with_replay()
                 
             return games_processed > 0
         except Exception as e:
@@ -452,11 +494,17 @@ class DQNAgent:
     
     def self_play_training(self, num_games=10):
         """Perform self-play training to improve the agent"""
-        # First load knowledge from past games
-        self.load_games_from_database()
+        # First load knowledge from past games with aggressive training
+        loaded_games = self.load_games_from_database(aggressive_training=True)
+        self.logger.info(f"Loaded and trained on {loaded_games} games from database")
+        
+        # Update database stats total for UI
+        self.get_training_stats()
         
         training_data = []
         
+        # Run self-play games
+        self.logger.info(f"Starting self-play training with {num_games} games")
         for game_num in range(num_games):
             board = chess.Board()
             game_moves = []
