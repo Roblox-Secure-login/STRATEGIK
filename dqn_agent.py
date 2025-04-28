@@ -285,8 +285,12 @@ class DQNAgent:
         board_copy.push(move)
         return board_copy.fen()
     
-    def generate_network_visual(self):
+    def generate_network_visual(self, skip_for_training=False):
         """Generate a visualization of the neural network state"""
+        # Skip visualization during training to improve performance
+        if skip_for_training:
+            return []
+            
         # In a real implementation, this would extract actual weights and activations
         # For this demo, we'll generate random activations
         visual_data = []
@@ -484,8 +488,61 @@ class DQNAgent:
                 # Store the transition
                 self.memory.append((current_fen, move_uci, reward, next_fen))
                 
-                # Update the network
-                self.update_network(current_fen, move_uci, reward, next_fen)
+                # Update the network without generating visualization during training
+                features = self.board_to_features(current_fen)
+                next_features = self.board_to_features(next_fen)
+                
+                if features not in self.board_values:
+                    self.board_values[features] = 0
+                
+                if next_features not in self.board_values:
+                    # Evaluate position without visualization during training
+                    board = chess.Board(next_fen)
+                    material_balance = 0
+                    piece_values = {"P": 1, "N": 3, "B": 3, "R": 5, "Q": 9, "K": 0,
+                                  "p": -1, "n": -3, "b": -3, "r": -5, "q": -9, "k": 0}
+                    
+                    for square in chess.SQUARES:
+                        piece = board.piece_at(square)
+                        if piece:
+                            material_balance += piece_values[piece.symbol()]
+                    
+                    # Add some randomness to evaluation
+                    evaluation = material_balance + (random.random() - 0.5) * 0.5
+                    self.board_values[next_features] = evaluation
+                
+                # Q-learning update
+                self.board_values[features] += self.alpha * (
+                    reward + self.gamma * self.board_values[next_features] - self.board_values[features]
+                )
+                
+                # Decay epsilon (reduce exploration over time as the agent learns)
+                if self.epsilon > self.epsilon_min:
+                    self.epsilon *= self.epsilon_decay
+                    
+                # Store experience in replay memory
+                self.memory.append((features, move_uci, reward, next_features))
+                
+                # Perform mini-batch training without visualization
+                if len(self.memory) >= self.min_replay_size:
+                    self.train_count += 1
+                    
+                    # Sample a mini-batch 
+                    batch_size = min(self.batch_size, len(self.memory))
+                    mini_batch = random.sample(self.memory, batch_size)
+                    
+                    # Update network based on batch of experiences
+                    for state, action, r, next_state in mini_batch:
+                        if state not in self.board_values:
+                            self.board_values[state] = 0
+                            
+                        if next_state not in self.board_values:
+                            self.board_values[next_state] = 0
+                        
+                        # Update with higher learning rate for experiences
+                        self.board_values[state] += self.alpha * 0.5 * (
+                            r + self.gamma * self.board_values[next_state] - self.board_values[state]
+                        )
                 
             # Record game result
             result = board.result()

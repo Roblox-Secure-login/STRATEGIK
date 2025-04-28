@@ -105,7 +105,12 @@ def start_training():
     data = request.get_json()
     num_games = data.get('num_games', 10)
     
-    # Start training in a separate thread to not block the response
+    # Limit max games for web requests to prevent timeout
+    if num_games > 50:
+        num_games = min(num_games, 50)
+        logging.info(f"Limited training games to {num_games} to prevent timeout")
+    
+    # Start training
     try:
         training_results = dqn_agent.self_play_training(num_games)
         
