@@ -70,6 +70,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Game is over
             gameInProgress = false;
             updateGameStatus(gameState.message);
+            
+            // Save the completed game to the database for AI learning
+            saveGameToDatabase(board.game, gameState.state);
             return;
         }
         
@@ -97,6 +100,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Game is over
                         gameInProgress = false;
                         updateGameStatus(newGameState.message);
+                        
+                        // Save the completed game to the database for AI learning
+                        saveGameToDatabase(board.game, newGameState.state);
                     } else {
                         // Continue game
                         updateGameStatus('Your turn to move');
@@ -130,4 +136,65 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Trigger initial resize
     window.dispatchEvent(new Event('resize'));
+    
+    /**
+     * Save a completed game to the database for AI training
+     * @param {Chess} chessGame - The chess.js game object
+     * @param {string} gameState - The game state (checkmate, stalemate, etc.)
+     */
+    async function saveGameToDatabase(chessGame, gameState) {
+        try {
+            // Get all moves in UCI format
+            const history = chessGame.history({verbose: true});
+            const movesList = history.map(move => {
+                return move.from + move.to + (move.promotion || '');
+            });
+            
+            // Determine the game result
+            let result = '1/2-1/2'; // Default to draw
+            if (gameState === 'checkmate') {
+                // Winner is the opposite of the current turn (since current turn lost)
+                result = chessGame.turn() === 'w' ? '0-1' : '1-0';
+            }
+            
+            // Get the final position evaluation
+            let evaluation = 0;
+            try {
+                const evalData = await dqnAgent.evaluatePosition(chessGame.fen());
+                evaluation = evalData.evaluation;
+            } catch (e) {
+                console.error('Error getting evaluation:', e);
+            }
+            
+            // Prepare game data
+            const gameData = {
+                moves: movesList,
+                result: result,
+                white_player: playerColor === 'w' ? 'User' : 'AI',
+                black_player: playerColor === 'w' ? 'AI' : 'User',
+                final_position: chessGame.fen(),
+                evaluation: evaluation,
+                game_type: 'user-vs-ai'
+            };
+            
+            // Send to server
+            const response = await fetch('/api/save-game', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(gameData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                console.log('Game saved successfully for AI training:', data.game_id);
+            } else {
+                console.error('Error saving game:', data.message);
+            }
+        } catch (error) {
+            console.error('Error saving game to database:', error);
+        }
+    }
 });

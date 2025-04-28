@@ -258,5 +258,58 @@ def update_training_parameters():
             'message': str(e)
         }), 500
 
+@app.route('/api/save-game', methods=['POST'])
+def save_game():
+    """Save a completed game to the database for training"""
+    data = request.get_json()
+    
+    try:
+        # Import models here to avoid circular imports
+        import models
+        
+        # Extract game data
+        moves_list = data.get('moves', [])
+        result = data.get('result', '1/2-1/2')  # Default to draw if not specified
+        white_player = data.get('white_player', 'User')
+        black_player = data.get('black_player', 'AI')
+        final_position = data.get('final_position', '')
+        evaluation = data.get('evaluation', 0)
+        game_type = data.get('game_type', 'user-vs-ai')
+        
+        # Create a new game history record
+        game = models.GameHistory(
+            game_id=str(uuid.uuid4()),
+            result=result,
+            white_player=white_player,
+            black_player=black_player,
+            fen_position=final_position,
+            game_type=game_type,
+            evaluation=evaluation
+        )
+        
+        # Set the moves list
+        game.set_moves_list(moves_list)
+        
+        # Add to database and commit
+        db.session.add(game)
+        db.session.commit()
+        
+        # After saving, refresh the DQN agent's knowledge
+        # This allows it to learn from the newly saved game in future training
+        dqn_agent.load_games_from_database()
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Game saved successfully',
+            'game_id': game.game_id
+        })
+    except Exception as e:
+        logging.error(f"Error saving game: {e}")
+        db.session.rollback()
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

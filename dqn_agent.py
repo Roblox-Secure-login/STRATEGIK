@@ -501,15 +501,165 @@ class DQNAgent:
             })
             
         self.training_stats.extend(training_data)
+        
+        # Save games to database for future training
+        try:
+            # Import here to avoid circular imports
+            import models
+            import json
+            import uuid
+            from app import db
+            from datetime import datetime
+            
+            # For each completed game, save to database
+            for game_data in training_data:
+                try:
+                    # Create a new game history entry
+                    game_history = models.GameHistory(
+                        game_id=str(uuid.uuid4()),
+                        result=game_data["result"],
+                        white_player="AI",
+                        black_player="AI",
+                        timestamp=datetime.utcnow(),
+                        game_type="self-play",
+                        evaluation=game_data["reward"]
+                    )
+                    
+                    # Set moves list
+                    game_history.set_moves_list(game_data["moves_list"])
+                    
+                    # Add to database
+                    db.session.add(game_history)
+                    
+                except Exception as e:
+                    self.logger.error(f"Error saving game to database: {e}")
+                    continue
+                    
+            # Commit all games at once
+            db.session.commit()
+            self.logger.info(f"Successfully saved {len(training_data)} games to database")
+            
+            # Update training statistics in database
+            try:
+                # Calculate stats
+                session_id = str(uuid.uuid4())[:8]  # Use part of UUID as session ID
+                white_wins = sum(1 for game in training_data if game["result"] == "1-0")
+                black_wins = sum(1 for game in training_data if game["result"] == "0-1")
+                draws = sum(1 for game in training_data if game["result"] == "1/2-1/2")
+                avg_game_length = sum(game["moves"] for game in training_data) / max(1, len(training_data))
+                avg_reward = sum(game["reward"] for game in training_data) / max(1, len(training_data))
+                
+                # Create training stats record
+                training_stats = models.TrainingStats(
+                    training_session=session_id,
+                    total_games=len(training_data),
+                    white_wins=white_wins,
+                    black_wins=black_wins,
+                    draws=draws,
+                    avg_game_length=avg_game_length,
+                    avg_reward=avg_reward,
+                    epsilon=self.epsilon,
+                    alpha=self.alpha,
+                    gamma=self.gamma,
+                    positions_evaluated=self.position_count
+                )
+                
+                db.session.add(training_stats)
+                db.session.commit()
+                self.logger.info(f"Successfully saved training stats to database")
+                
+            except Exception as e:
+                self.logger.error(f"Error saving training stats to database: {e}")
+                db.session.rollback()
+                
+        except Exception as e:
+            self.logger.error(f"Database operation failed: {e}")
+            
         return training_data
         
     def get_training_stats(self):
         """Return statistics about the training progress"""
+        # Calculate local stats from current session
         win_rate = (self.wins / max(1, self.total_games)) * 100
         avg_game_length = sum(stat["moves"] for stat in self.training_stats) / max(1, len(self.training_stats))
         avg_reward = sum(stat["reward"] for stat in self.training_stats) / max(1, len(self.training_stats))
         
-        return {
+        # Initialize database stats
+        db_stats = {
+            "db_total_games": 0,
+            "db_white_wins": 0,
+            "db_black_wins": 0,
+            "db_draws": 0,
+            "white_win_percentage": 0,
+            "black_win_percentage": 0,
+            "draw_percentage": 0
+        }
+        
+        # Try to get global stats from database
+        try:
+            # Import here to avoid circular imports
+            import models
+            from app import db
+            from sqlalchemy import func
+            
+            # Get game counts by result
+            game_counts = db.session.query(
+                models.GameHistory.result,
+                func.count(models.GameHistory.id).label('count')
+            ).group_by(models.GameHistory.result).all()
+            
+            # Calculate stats
+            total_db_games = 0
+            white_wins = 0
+            black_wins = 0
+            draws = 0
+            
+            for result, count in game_counts:
+                total_db_games += count
+                if result == "1-0":
+                    white_wins = count
+                elif result == "0-1":
+                    black_wins = count
+                else:  # Draw results like "1/2-1/2"
+                    draws = count
+            
+            # Calculate percentages
+            if total_db_games > 0:
+                white_win_pct = (white_wins / total_db_games) * 100
+                black_win_pct = (black_wins / total_db_games) * 100
+                draw_pct = (draws / total_db_games) * 100
+            else:
+                white_win_pct = black_win_pct = draw_pct = 0
+                
+            # Get average game length
+            avg_db_game_length = db.session.query(
+                func.avg(func.json_array_length(models.GameHistory.moves))
+            ).scalar() or 0
+            
+            # Get average reward
+            avg_db_reward = db.session.query(
+                func.avg(models.GameHistory.evaluation)
+            ).scalar() or 0
+            
+            # Update db_stats
+            db_stats = {
+                "db_total_games": total_db_games,
+                "db_white_wins": white_wins,
+                "db_black_wins": black_wins,
+                "db_draws": draws,
+                "white_win_percentage": white_win_pct,
+                "black_win_percentage": black_win_pct,
+                "draw_percentage": draw_pct,
+                "db_avg_game_length": float(avg_db_game_length),
+                "db_avg_reward": float(avg_db_reward)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error getting database stats: {e}")
+            # Continue with default values if database query fails
+        
+        # Combine local and database stats
+        combined_stats = {
             "total_games": self.total_games,
             "wins": self.wins,
             "losses": self.losses,
@@ -522,3 +672,8 @@ class DQNAgent:
             "last_game": self.last_game_moves,
             "training_history": self.training_stats[-10:] if self.training_stats else []
         }
+        
+        # Merge with database stats
+        combined_stats.update(db_stats)
+        
+        return combined_stats
