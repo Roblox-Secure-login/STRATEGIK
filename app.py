@@ -28,11 +28,11 @@ dqn_agent = DQNAgent()
 
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return render_template('about.html')  # Using about.html as the homepage
 
-@app.route('/about')
-def about():
-    return render_template('about.html')
+@app.route('/play')
+def play():
+    return render_template('index.html')  # The chess game page
 
 @app.route('/ai-description')
 def ai_description():
