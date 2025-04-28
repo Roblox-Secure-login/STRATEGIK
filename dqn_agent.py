@@ -405,7 +405,9 @@ class DQNAgent:
             # Get past games from database - sort by timestamp to prioritize newer games
             past_games = models.GameHistory.query.order_by(models.GameHistory.timestamp.desc()).all()
             games_processed = 0
-            batch_size = 10  # Process games in batches for more efficient training
+            
+            # Dynamically adjust batch size based on total game count for better efficiency with large datasets
+            batch_size = 50 if game_count > 500 else (25 if game_count > 100 else 10)
             
             # Process each game
             for game_idx, game in enumerate(past_games):
@@ -472,8 +474,9 @@ class DQNAgent:
                     if aggressive_training and games_processed % batch_size == 0:
                         self.logger.info(f"Processing batch of {batch_size} games, running training...")
                         if len(self.memory) >= self.min_replay_size:
-                            # More intense training on recent games
-                            for _ in range(3):  # Train multiple times on each batch
+                            # More efficient training for different batch sizes
+                            training_iterations = 2 if batch_size > 25 else 3
+                            for _ in range(training_iterations):  # Adjust training iterations based on batch size
                                 self.train_with_replay()
                 except Exception as e:
                     self.logger.error(f"Error processing game: {e}")
@@ -481,10 +484,12 @@ class DQNAgent:
             
             self.logger.info(f"Successfully processed {games_processed} games from database.")
             
-            # Final training pass after loading all games
+            # Final training pass after loading all games, with optimized iterations based on memory size
             if len(self.memory) >= self.min_replay_size:
                 self.logger.info("Running final training pass on all loaded games...")
-                for _ in range(5):  # Multiple training passes
+                # Use fewer iterations for very large datasets to avoid diminishing returns
+                iterations = 3 if len(self.memory) > 1000 else (4 if len(self.memory) > 500 else 5)
+                for _ in range(iterations):
                     self.train_with_replay()
                 
             return games_processed > 0
