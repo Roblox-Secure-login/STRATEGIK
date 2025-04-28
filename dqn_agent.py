@@ -23,8 +23,8 @@ class DQNAgent:
         
         # Enhanced network with experience replay
         self.board_values = {}       # State-value mapping
-        self.memory = deque(maxlen=2000)  # Experience replay buffer
-        self.batch_size = 32         # Batch size for experience replay
+        self.memory = deque(maxlen=5000)  # Experience replay buffer - increased for larger training sets
+        self.batch_size = 64         # Batch size for experience replay - increased for better learning
         self.min_replay_size = 100   # Minimum experiences before learning
         self.train_count = 0         # Counter for training iterations
         
@@ -352,12 +352,30 @@ class DQNAgent:
         return self.generate_network_visual()
         
     def train_with_replay(self):
-        """Train the DQN using experience replay"""
+        """Train the DQN using experience replay with optimized batch processing"""
         self.train_count += 1
         
-        # Sample a mini-batch from the replay memory
-        batch_size = min(self.batch_size, len(self.memory))
-        mini_batch = random.sample(self.memory, batch_size)
+        # Sample a mini-batch from the replay memory with progressive batch sizing
+        memory_size = len(self.memory)
+        # Adaptive batch size based on memory size for more efficient training
+        batch_size = min(self.batch_size, memory_size)
+        
+        # Skip if not enough samples
+        if memory_size < self.min_replay_size:
+            return
+            
+        # Sample mini-batch with priority for newer experiences (70% new, 30% old)
+        if memory_size > batch_size * 2:
+            # Split between recent and older experiences
+            recent_idx = int(memory_size * 0.3)  # Get 30% most recent
+            recent_batch_size = int(batch_size * 0.7)  # 70% of batch from recent
+            old_batch_size = batch_size - recent_batch_size
+            
+            recent_samples = random.sample(list(self.memory)[-recent_idx:], recent_batch_size)
+            old_samples = random.sample(list(self.memory)[:-recent_idx], old_batch_size)
+            mini_batch = recent_samples + old_samples
+        else:
+            mini_batch = random.sample(self.memory, batch_size)
         
         # Update network based on batch of experiences
         for state, action, reward, next_state in mini_batch:
