@@ -44,11 +44,20 @@
         <h1 class="text-center mb-4">Watch Training</h1>
         <p class="text-center mb-5">Observe how the Deep Q-Learning neural network learns and improves over time</p>
         
+        <div class="text-center mb-3">
+            <a id="open-fullscreen-link" href="/watch-training?fullscreen=true" target="_blank" class="btn btn-outline-success">
+                <i class="fas fa-expand"></i> Open Training View in Full Screen
+            </a>
+        </div>
+        
         <div class="row">
             <div class="col-lg-8">
                 <div class="card mb-4">
-                    <div class="card-header bg-success text-white">
+                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Training Visualization</h5>
+                        <button id="fullscreen-btn" class="btn btn-sm btn-light">
+                            <i class="fas fa-expand"></i>
+                        </button>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
@@ -135,6 +144,14 @@
                                 <span>Reward:</span>
                                 <span id="current-reward">0.0</span>
                             </div>
+                            
+                            <!-- Move history display -->
+                            <div class="mt-3">
+                                <h6>Latest Moves:</h6>
+                                <div id="move-history" class="small bg-light p-2 rounded" style="height: 100px; overflow-y: auto;">
+                                    <div class="text-muted text-center">No moves yet</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -194,10 +211,33 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize a small chessboard for training visualization
-            const trainingBoard = createChessboard('training-board', 300, true);
+            // Check if we're in fullscreen mode (based on URL parameter)
+            const urlParams = new URLSearchParams(window.location.search);
+            const isFullscreen = urlParams.get('fullscreen') === 'true';
             
-            // Mock training data for visualization (would be real in production)
+            // Adjust UI for fullscreen mode if needed
+            if (isFullscreen) {
+                document.querySelector('main').classList.add('container-fluid');
+                document.querySelector('main').classList.remove('container');
+                document.getElementById('open-fullscreen-link').style.display = 'none';
+                
+                // Make the chess board larger in fullscreen mode
+                const boardSize = Math.min(window.innerWidth * 0.4, 600);
+                const trainingBoard = createChessboard('training-board', boardSize, true);
+            } else {
+                // Regular size for inline view
+                const trainingBoard = createChessboard('training-board', 300, true);
+            }
+            
+            // Add fullscreen button functionality
+            document.getElementById('fullscreen-btn').addEventListener('click', function() {
+                window.open('/watch-training?fullscreen=true', '_blank');
+            });
+            
+            // Initialize connection to DQN interface
+            const dqnInterface = new DQNInterface();
+            
+            // Training data for visualization
             let trainingData = {
                 episodes: 1000,
                 currentEpisode: 0,
@@ -205,12 +245,15 @@
                 winRate: 0,
                 avgGameLength: 0,
                 avgReward: 0,
-                learningCurve: Array(100).fill().map((_, i) => ({ episode: i * 10, reward: 0 }))
+                learningCurve: Array(100).fill().map((_, i) => ({ episode: i * 10, reward: 0 })),
+                moveHistory: []
             };
             
             // Training controls
             let trainingInterval;
             let isTraining = false;
+            let gameInProgress = false;
+            let chessGame = new Chess();
             
             // Initialize D3.js learning curve visualization
             const margin = {top: 20, right: 20, bottom: 30, left: 50};
@@ -300,73 +343,173 @@
                     );
             }
             
-            // Function to simulate training progress
+            // Function to start real self-play training with DQN agent
             function startTraining() {
                 isTraining = true;
                 
                 // Get parameters from form
                 const episodes = parseInt(document.getElementById('episodes').value);
                 const initialEpsilon = parseFloat(document.getElementById('initial-epsilon').value);
+                const learningRate = parseFloat(document.getElementById('learning-rate').value);
+                const discountFactor = parseFloat(document.getElementById('discount-factor').value);
                 const speed = parseInt(document.getElementById('speed').value);
                 
-                // Update training data with parameters
-                trainingData.episodes = episodes;
-                trainingData.epsilon = initialEpsilon;
+                // Clear move history display
+                const moveHistoryDiv = document.getElementById('move-history');
+                moveHistoryDiv.innerHTML = '<div class="text-center">Starting training...</div>';
+                
+                // Update training parameters on the server
+                fetch('/api/update-training-parameters', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        epsilon: initialEpsilon,
+                        alpha: learningRate,
+                        gamma: discountFactor
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Parameters updated:', data);
+                    
+                    // Start the training process
+                    return fetch('/api/start-training', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            num_games: episodes
+                        })
+                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Update training data with real data from the server
+                    fetchTrainingStats();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    moveHistoryDiv.innerHTML = '<div class="text-center text-danger">Error starting training</div>';
+                    pauseTraining();
+                });
                 
                 // Update x-axis domain based on episodes
                 x.domain([0, episodes]);
                 svg.select('g').call(d3.axisBottom(x));
                 
-                // Simulate training process
+                // Set up polling interval to update the visualization
                 trainingInterval = setInterval(() => {
-                    // Simulate a training episode
-                    trainingData.currentEpisode++;
-                    
-                    // Decrease epsilon slightly
-                    trainingData.epsilon = Math.max(0.01, initialEpsilon * (1 - trainingData.currentEpisode / episodes));
-                    
-                    // Update metrics with some randomness
-                    trainingData.winRate = Math.min(100, 40 * (trainingData.currentEpisode / episodes) + Math.random() * 10);
-                    trainingData.avgGameLength = 30 + (trainingData.currentEpisode / episodes) * 10 + Math.random() * 5;
-                    trainingData.avgReward = -0.5 + trainingData.currentEpisode / episodes + Math.random() * 0.2;
-                    
-                    // Update learning curve
-                    if (trainingData.currentEpisode % 10 === 0) {
-                        trainingData.learningCurve.push({
-                            episode: trainingData.currentEpisode,
-                            reward: trainingData.avgReward
-                        });
-                    }
-                    
-                    // Update UI
-                    updateTrainingUI();
-                    
-                    // Simulate chess position
-                    if (trainingData.currentEpisode % 5 === 0) {
-                        const game = new Chess();
-                        const moves = Math.floor(Math.random() * 20);
-                        
-                        for (let i = 0; i < moves; i++) {
-                            const legalMoves = game.moves();
-                            if (legalMoves.length > 0) {
-                                const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-                                game.move(randomMove);
+                    fetchTrainingStats();
+                }, 2000);  // Poll every 2 seconds
+                
+                // Function to fetch current training stats
+                function fetchTrainingStats() {
+                    fetch('/api/get-training-stats')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                const stats = data.stats;
+                                
+                                // Update training data
+                                trainingData.currentEpisode = stats.total_games;
+                                trainingData.epsilon = stats.epsilon;
+                                trainingData.winRate = stats.win_rate;
+                                trainingData.avgGameLength = stats.avg_game_length;
+                                trainingData.avgReward = stats.avg_reward;
+                                
+                                // Update learning curve with training history
+                                if (stats.training_history && stats.training_history.length > 0) {
+                                    trainingData.learningCurve = stats.training_history.map((game, i) => ({
+                                        episode: game.game,
+                                        reward: game.reward
+                                    }));
+                                }
+                                
+                                // Update move history display with last game
+                                if (stats.last_game && stats.last_game.length > 0) {
+                                    updateMoveHistory(stats.last_game);
+                                    
+                                    // If we have moves, update the board to the current game state
+                                    if (stats.last_game.length > 0) {
+                                        // Reset the game and play all moves
+                                        chessGame = new Chess();
+                                        
+                                        for (const moveUci of stats.last_game) {
+                                            try {
+                                                // Convert UCI format to chess.js move format if needed
+                                                const move = {
+                                                    from: moveUci.substring(0, 2),
+                                                    to: moveUci.substring(2, 4),
+                                                    promotion: moveUci.length > 4 ? moveUci.substring(4, 5) : undefined
+                                                };
+                                                chessGame.move(move);
+                                            } catch (e) {
+                                                console.error('Invalid move:', moveUci, e);
+                                            }
+                                        }
+                                        
+                                        // Update board with current position
+                                        if (typeof trainingBoard.position === 'function') {
+                                            trainingBoard.position(chessGame.fen());
+                                        }
+                                        
+                                        // Update move counter
+                                        document.getElementById('current-move').textContent = chessGame.history().length;
+                                        
+                                        // We don't have the exact evaluation, but we can use the reward as a proxy
+                                        const lastGameData = stats.training_history[stats.training_history.length - 1];
+                                        if (lastGameData) {
+                                            document.getElementById('current-eval').textContent = lastGameData.reward.toFixed(2);
+                                            document.getElementById('current-reward').textContent = lastGameData.reward.toFixed(2);
+                                        }
+                                    }
+                                }
+                                
+                                // Update UI
+                                updateTrainingUI();
+                                
+                                // Check if training is complete
+                                if (trainingData.currentEpisode >= episodes) {
+                                    pauseTraining();
+                                    document.getElementById('pause-training-btn').disabled = true;
+                                    document.getElementById('start-training-btn').disabled = false;
+                                    moveHistoryDiv.innerHTML += '<div class="text-success text-center">Training complete!</div>';
+                                }
                             }
-                        }
-                        
-                        trainingBoard.position(game.fen());
-                        document.getElementById('current-move').textContent = game.history().length;
-                        document.getElementById('current-eval').textContent = (Math.random() * 2 - 1).toFixed(2);
-                        document.getElementById('current-reward').textContent = (Math.random() * 0.2 - 0.1).toFixed(2);
+                        })
+                        .catch(error => {
+                            console.error('Error fetching training stats:', error);
+                        });
+                }
+            }
+            
+            // Function to update move history display
+            function updateMoveHistory(moves) {
+                const moveHistoryDiv = document.getElementById('move-history');
+                moveHistoryDiv.innerHTML = '';
+                
+                if (moves.length === 0) {
+                    moveHistoryDiv.innerHTML = '<div class="text-muted text-center">No moves yet</div>';
+                    return;
+                }
+                
+                // Display the moves in a more readable format
+                let html = '<div class="move-list">';
+                moves.forEach((move, index) => {
+                    const moveNumber = Math.floor(index / 2) + 1;
+                    if (index % 2 === 0) {
+                        html += `<span class="move-number">${moveNumber}.</span> <span class="move">${move}</span> `;
+                    } else {
+                        html += `<span class="move">${move}</span><br>`;
                     }
-                    
-                    // Check if training is complete
-                    if (trainingData.currentEpisode >= episodes) {
-                        pauseTraining();
-                        document.getElementById('pause-training-btn').disabled = true;
-                        document.getElementById('start-training-btn').disabled = true;
-                    }
-                }, 100 - speed);  // Adjust speed based on slider
+                });
+                html += '</div>';
+                
+                moveHistoryDiv.innerHTML = html;
+                moveHistoryDiv.scrollTop = moveHistoryDiv.scrollHeight; // Scroll to the latest move
             }
             
             // Function to pause training

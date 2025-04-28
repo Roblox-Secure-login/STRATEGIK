@@ -10,6 +10,8 @@ class DQNInterface {
         this.confidence = 0;
         this.networkState = null;
         this.moveHistory = [];
+        this.trainingInProgress = false;
+        this.trainingStats = null;
     }
     
     /**
@@ -203,6 +205,80 @@ class DQNInterface {
     }
     
     /**
+     * Start AI self-play training with specified parameters
+     * @param {number} numGames - Number of games to play
+     * @param {Object} parameters - Training parameters
+     * @returns {Promise<Object>} - Training results
+     */
+    async startTraining(numGames, parameters = {}) {
+        try {
+            this.trainingInProgress = true;
+            
+            // First update parameters
+            if (Object.keys(parameters).length > 0) {
+                const paramsResponse = await fetch('/api/update-training-parameters', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(parameters)
+                });
+                
+                if (!paramsResponse.ok) {
+                    throw new Error(`Failed to update parameters: ${paramsResponse.status}`);
+                }
+            }
+            
+            // Start the training
+            const trainingResponse = await fetch('/api/start-training', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ num_games: numGames })
+            });
+            
+            if (!trainingResponse.ok) {
+                throw new Error(`Failed to start training: ${trainingResponse.status}`);
+            }
+            
+            const data = await trainingResponse.json();
+            this.trainingInProgress = false;
+            return data;
+        } catch (error) {
+            console.error('Error starting training:', error);
+            this.trainingInProgress = false;
+            return { status: 'error', message: error.message };
+        }
+    }
+    
+    /**
+     * Get current training statistics
+     * @returns {Promise<Object>} - Training statistics
+     */
+    async getTrainingStats() {
+        try {
+            const response = await fetch('/api/get-training-stats');
+            
+            if (!response.ok) {
+                throw new Error(`Failed to get training stats: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                this.trainingStats = data.stats;
+                return data.stats;
+            } else {
+                throw new Error(data.message || 'Unknown error');
+            }
+        } catch (error) {
+            console.error('Error getting training stats:', error);
+            return null;
+        }
+    }
+    
+    /**
      * Reset the agent's state
      */
     reset() {
@@ -211,6 +287,7 @@ class DQNInterface {
         this.confidence = 0;
         this.networkState = null;
         this.moveHistory = [];
+        this.trainingInProgress = false;
         
         // Reset visualization
         this.updateVisualization();
