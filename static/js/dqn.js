@@ -288,19 +288,39 @@ class DQNInterface {
      */
     updateTrainingStatsDisplay(stats) {
         // Update win/loss/draw percentages
+        const whiteWinPct = stats.white_win_percentage || 0;
+        const blackWinPct = stats.black_win_percentage || 0;
+        const drawPct = stats.draw_percentage || 0;
+        
+        // Update stats cards
         if (document.getElementById('white-win-rate')) {
-            document.getElementById('white-win-rate').textContent = stats.white_win_percentage ? 
-                `${stats.white_win_percentage.toFixed(1)}%` : '0%';
+            document.getElementById('white-win-rate').textContent = `${whiteWinPct.toFixed(1)}%`;
         }
         
         if (document.getElementById('black-win-rate')) {
-            document.getElementById('black-win-rate').textContent = stats.black_win_percentage ? 
-                `${stats.black_win_percentage.toFixed(1)}%` : '0%';
+            document.getElementById('black-win-rate').textContent = `${blackWinPct.toFixed(1)}%`;
         }
         
         if (document.getElementById('draw-rate')) {
-            document.getElementById('draw-rate').textContent = stats.draw_percentage ? 
-                `${stats.draw_percentage.toFixed(1)}%` : '0%';
+            document.getElementById('draw-rate').textContent = `${drawPct.toFixed(1)}%`;
+        }
+        
+        // Update progress bars
+        if (document.getElementById('white-win-bar')) {
+            document.getElementById('white-win-bar').style.width = `${whiteWinPct}%`;
+            document.getElementById('black-win-bar').style.width = `${blackWinPct}%`;
+            document.getElementById('draw-bar').style.width = `${drawPct}%`;
+            document.getElementById('win-ratio-text').textContent = `${whiteWinPct.toFixed(1)}% / ${blackWinPct.toFixed(1)}%`;
+        }
+        
+        // Update total games progress bar
+        const totalGames = stats.total_stored_games || stats.total_games || 0;
+        if (document.getElementById('total-games-count')) {
+            document.getElementById('total-games-count').textContent = `${totalGames} games`;
+            
+            // Scale progress bar - 100% at 1000 games, but cap at 100%
+            const gamesPct = Math.min(totalGames / 10, 100);
+            document.getElementById('total-games-bar').style.width = `${gamesPct}%`;
         }
         
         // Update other statistics

@@ -59,19 +59,29 @@
                     <div class="card-body">
                         <div class="mb-3">
                             <div class="d-flex justify-content-between mb-2">
-                                <span>Training Progress:</span>
-                                <span id="training-progress">Episode 0 of 1000</span>
+                                <span>Total Games in Database:</span>
+                                <span id="total-games-count">0 games</span>
                             </div>
                             <div class="progress mb-3">
-                                <div id="progress-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                                <div id="total-games-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
                             </div>
                             
                             <div class="d-flex justify-content-between mb-2">
-                                <span>Current Epsilon:</span>
+                                <span>Current Epsilon (Exploration Rate):</span>
                                 <span id="current-epsilon">0.1</span>
                             </div>
-                            <div class="progress mb-4">
+                            <div class="progress mb-3">
                                 <div id="epsilon-bar" class="progress-bar bg-info" role="progressbar" style="width: 10%"></div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>White/Black Win Ratio:</span>
+                                <span id="win-ratio-text">0% / 0%</span>
+                            </div>
+                            <div class="progress mb-4">
+                                <div id="white-win-bar" class="progress-bar bg-light text-dark" role="progressbar" style="width: 0%">White</div>
+                                <div id="draw-bar" class="progress-bar bg-secondary" role="progressbar" style="width: 0%">Draw</div>
+                                <div id="black-win-bar" class="progress-bar bg-dark" role="progressbar" style="width: 0%">Black</div>
                             </div>
                         </div>
                         
