@@ -355,8 +355,17 @@ class DQNAgent:
                 self.board_values[state] = 0
                 
             if next_state not in self.board_values:
-                next_value, _ = self.evaluate_position(chess.Board(next_state.split(":")[0]))
-                self.board_values[next_state] = next_value
+                try:
+                    # Handle the case where next_state might be a string or a board object
+                    if isinstance(next_state, str) and ":" in next_state:
+                        fen_str = next_state.split(":")[0]
+                        next_value, _ = self.evaluate_position(fen_str)
+                    else:
+                        next_value, _ = self.evaluate_position(next_state)
+                    self.board_values[next_state] = next_value
+                except Exception as e:
+                    self.logger.error(f"Error in replay training: {e}")
+                    self.board_values[next_state] = 0  # Use default value on error
             
             # Update with higher learning rate for replay experiences to prioritize them
             self.board_values[state] += self.alpha * 0.5 * (
@@ -631,10 +640,17 @@ class DQNAgent:
             else:
                 white_win_pct = black_win_pct = draw_pct = 0
                 
-            # Get average game length
-            avg_db_game_length = db.session.query(
-                func.avg(func.json_array_length(models.GameHistory.moves))
-            ).scalar() or 0
+            # Get average game length without using JSON functions 
+            # which might not be available in all PostgreSQL versions
+            games = models.GameHistory.query.all()
+            move_counts = []
+            for game in games:
+                # Use the get_moves_list method which loads JSON
+                moves = game.get_moves_list()
+                move_counts.append(len(moves))
+            
+            # Calculate average
+            avg_db_game_length = sum(move_counts) / max(1, len(move_counts)) if move_counts else 0
             
             # Get average reward
             avg_db_reward = db.session.query(

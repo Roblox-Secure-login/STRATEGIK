@@ -180,39 +180,41 @@ def start_training():
 def get_training_stats():
     """Get statistics about the AI's training progress"""
     try:
-        # Get in-memory stats from the agent
-        agent_stats = dqn_agent.get_training_stats()
-        
-        # Import models here to avoid circular imports
-        import models
-        
-        # Get database stats
-        db_stats = models.TrainingStats.query.order_by(models.TrainingStats.timestamp.desc()).first()
-        
-        if db_stats:
-            # Add database stats if available
-            combined_stats = {
-                'total_games': db_stats.total_games,
-                'white_wins': db_stats.white_wins,
-                'black_wins': db_stats.black_wins,
-                'draws': db_stats.draws,
-                'white_win_percentage': db_stats.white_win_percentage(),
-                'black_win_percentage': db_stats.black_win_percentage(),
-                'draw_percentage': db_stats.draw_percentage(),
-                'avg_game_length': db_stats.avg_game_length,
-                'avg_reward': db_stats.avg_reward,
-                'epsilon': db_stats.epsilon,
-                'alpha': db_stats.alpha,
-                'gamma': db_stats.gamma,
-                'positions_evaluated': db_stats.positions_evaluated,
-                'last_updated': db_stats.timestamp.isoformat(),
-                # Include agent's in-memory data
-                'last_game': agent_stats.get('last_game', []),
-                'training_history': agent_stats.get('training_history', [])
-            }
-        else:
-            # Fall back to agent stats if no database records
-            combined_stats = agent_stats
+        # Create a new session to isolate database operations
+        with db.session.begin():
+            # Get in-memory stats from the agent
+            agent_stats = dqn_agent.get_training_stats()
+            
+            # Import models here to avoid circular imports
+            import models
+            
+            # Get database stats
+            db_stats = models.TrainingStats.query.order_by(models.TrainingStats.timestamp.desc()).first()
+            
+            if db_stats:
+                # Add database stats if available
+                combined_stats = {
+                    'total_games': db_stats.total_games,
+                    'white_wins': db_stats.white_wins,
+                    'black_wins': db_stats.black_wins,
+                    'draws': db_stats.draws,
+                    'white_win_percentage': db_stats.white_win_percentage(),
+                    'black_win_percentage': db_stats.black_win_percentage(),
+                    'draw_percentage': db_stats.draw_percentage(),
+                    'avg_game_length': db_stats.avg_game_length,
+                    'avg_reward': db_stats.avg_reward,
+                    'epsilon': db_stats.epsilon,
+                    'alpha': db_stats.alpha,
+                    'gamma': db_stats.gamma,
+                    'positions_evaluated': db_stats.positions_evaluated,
+                    'last_updated': db_stats.timestamp.isoformat(),
+                    # Include agent's in-memory data
+                    'last_game': agent_stats.get('last_game', []),
+                    'training_history': agent_stats.get('training_history', [])
+                }
+            else:
+                # Fall back to agent stats if no database records
+                combined_stats = agent_stats
             
         # Get count of games in database
         game_count = models.GameHistory.query.count()
