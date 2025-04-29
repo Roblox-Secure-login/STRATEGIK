@@ -1,2 +1,6 @@
 flask
 gunicorn
+torch
+python-chess
+flask_sqlalchemy
+numpy
